@@ -1,0 +1,408 @@
+/**
+ * CPR Assist - Export Modul (V16.9 - Getrennte Medikamente)
+ * - Generiert das PDF-Protokoll und den Text-Export.
+ * - Zeichnet eine professionelle, horizontale Zeitachse mit "Fähnchen"-Boxen.
+ * - Inklusive angepasster Legende für Adrenalin (Spritze) & Amiodaron (Pille).
+ */
+
+window.CPR = window.CPR || {};
+
+window.CPR.Export = (function() {
+
+    // --- 1. ICON LOGIK (Passend zur App) ---
+    function getIconData(txt) {
+        if (!txt) return null;
+        const t = txt.toLowerCase();
+        
+        if (t.includes('hits') || t.includes('h.i.t.s') || t.includes('sampler') || t.includes('anamnese')) return { icon: '📋', type: 'info' };
+        if (t.includes('schock')) return { icon: '⚡', type: 'shock' };
+        
+        // GETRENNTE MEDIKAMENTE
+        if (t.includes('adrenalin')) return { icon: '💉', type: 'adr' };
+        if (t.includes('amiodaron')) return { icon: '💊', type: 'amio' };
+        
+        if (t.includes('atemweg:') || t.includes('beatmungen durchge')) return { icon: '🫁', type: 'airway' };
+        if (t.includes('zugang:')) return { icon: '🩸', type: 'access' };
+        if (t.includes('start rea')) return { icon: '▶️', type: 'start' };
+        if (t.includes('rosc!')) return { icon: '❤️', type: 'rosc' };
+        if (t.includes('re-arrest')) return { icon: '💔', type: 'arrest' };
+        if (t.includes('abbruch') || t.includes('beendet')) return { icon: '🛑', type: 'end' };
+        
+        if (t.includes('kompression pause') || t.includes('kompression fortgesetzt') || 
+            t.includes('beatmungen übersprungen') || t.includes('modus manuell') ||
+            t.includes('atemweg entfernt')) {
+            return null; 
+        }
+        
+        return { icon: 'ℹ️', type: 'default' };
+    }
+
+    // --- 2. CANVAS ZEITLEISTE GENERIEREN ---
+    function createTimelineCanvas(data, totalSeconds) {
+        const events = data.map(d => ({
+            ...d,
+            iconData: getIconData(d.action),
+            timeStr: window.CPR.Utils.formatRelative(d.secondsFromStart)
+        })).filter(d => d.iconData !== null);
+
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        const scale = 2;
+        const maxSec = Math.max(300, totalSeconds + 30); 
+        const baseWidth = Math.max(1200, (maxSec / 60) * 200); 
+        const baseHeight = 500; 
+        
+        canvas.width = baseWidth * scale;
+        canvas.height = baseHeight * scale;
+        ctx.scale(scale, scale);
+        
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, baseWidth, baseHeight);
+        
+        const paddingX = 80;
+        const usableWidth = baseWidth - (paddingX * 2);
+        const lineY = baseHeight / 2; 
+        
+        // HAUPTACHSE
+        ctx.beginPath();
+        ctx.moveTo(paddingX - 20, lineY);
+        ctx.lineTo(baseWidth - paddingX + 20, lineY);
+        ctx.strokeStyle = '#cbd5e1';
+        ctx.lineWidth = 4;
+        ctx.lineCap = 'round';
+        ctx.stroke();
+
+        if (events.length === 0) {
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = 'bold 16px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText("Keine relevanten Ereignisse für die grafische Zeitleiste dokumentiert.", baseWidth/2, lineY - 30);
+            return canvas;
+        }
+
+        // SMART TRACKS
+        const tracks = {
+            '-1': { yOffset: -80, lastEndX: -999 },
+            '1':  { yOffset: 80,  lastEndX: -999 },
+            '-2': { yOffset: -150, lastEndX: -999 },
+            '2':  { yOffset: 150, lastEndX: -999 },
+            '-3': { yOffset: -220, lastEndX: -999 },
+            '3':  { yOffset: 220, lastEndX: -999 }
+        };
+        const trackOrder = ['-1', '1', '-2', '2', '-3', '3'];
+
+        // EVENTS ZEICHNEN
+        events.forEach(ev => {
+            const x = paddingX + (ev.secondsFromStart / maxSec) * usableWidth;
+            
+            ctx.font = 'bold 12px Arial';
+            const actionText = ev.action.length > 45 ? ev.action.substring(0, 45) + '...' : ev.action;
+            const textWidth = ctx.measureText(actionText).width;
+            const timeWidth = ctx.measureText(`[${ev.timeStr}]`).width;
+            
+            const boxWidth = textWidth + timeWidth + 40; 
+            const boxHeight = 32;
+            const boxHalf = boxWidth / 2;
+            
+            let assignedTrack = '-1';
+            for (let t of trackOrder) {
+                const requiredMinX = x - boxHalf - 15; 
+                if (tracks[t].lastEndX < requiredMinX) {
+                    assignedTrack = t;
+                    break;
+                }
+            }
+            
+            const tData = tracks[assignedTrack];
+            const isTop = parseInt(assignedTrack) < 0;
+            const boxY = lineY + tData.yOffset - (isTop ? boxHeight : 0);
+            
+            tData.lastEndX = x + boxHalf; 
+            
+            // Fähnchenmast
+            ctx.beginPath();
+            ctx.moveTo(x, lineY);
+            ctx.lineTo(x, isTop ? boxY + boxHeight : boxY);
+            ctx.strokeStyle = '#94a3b8';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+            
+            // Box
+            ctx.shadowColor = 'rgba(0,0,0,0.06)';
+            ctx.shadowBlur = 6;
+            ctx.shadowOffsetY = 3;
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.roundRect(x - boxHalf, boxY, boxWidth, boxHeight, 6); 
+            ctx.fill();
+            
+            ctx.shadowColor = 'transparent';
+            
+            // Dynamische Rahmenfarbe anhand des Typs
+            let borderColor = '#e2e8f0';
+            if (ev.iconData.type === 'adr') borderColor = '#fecaca'; // red-200
+            if (ev.iconData.type === 'amio') borderColor = '#e9d5ff'; // purple-200
+            if (ev.iconData.type === 'shock') borderColor = '#fde047'; // yellow-300
+            
+            ctx.strokeStyle = borderColor;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            // Text Time
+            ctx.fillStyle = '#E3000F';
+            ctx.font = 'bold 12px monospace';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(`[${ev.timeStr}]`, x - boxHalf + 12, boxY + boxHeight/2);
+            
+            // Text Aktion
+            ctx.fillStyle = '#334155';
+            ctx.font = 'bold 12px Arial';
+            ctx.fillText(actionText, x - boxHalf + 12 + timeWidth + 8, boxY + boxHeight/2);
+            
+            // Punkt auf Achse
+            ctx.beginPath();
+            ctx.arc(x, lineY, 14, 0, 2 * Math.PI);
+            ctx.fillStyle = '#ffffff';
+            ctx.fill();
+            ctx.strokeStyle = '#cbd5e1';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            ctx.font = '14px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(ev.iconData.icon, x, lineY + 1); 
+        });
+        
+        // 4. LEGENDE (Breiter gemacht für neues Item)
+        const legX = 30;
+        const legY = baseHeight - 70;
+        const legItems = [
+            { i: '▶️', t: 'Start' }, { i: '⚡', t: 'Schock' }, { i: '💉', t: 'Adrenalin' }, { i: '💊', t: 'Amiodaron' },
+            { i: '🫁', t: 'Atemweg' }, { i: '🩸', t: 'Zugang' }, { i: '📋', t: 'Checklisten' },
+            { i: '❤️', t: 'ROSC' }, { i: '🛑', t: 'Abbruch/Ende' }
+        ];
+        
+        ctx.fillStyle = 'rgba(255,255,255,0.9)';
+        ctx.beginPath();
+        // Container etwas breiter gemacht (880 statt 780)
+        ctx.roundRect(legX, legY, 880, 50, 8);
+        ctx.fill();
+        ctx.strokeStyle = '#e2e8f0';
+        ctx.stroke();
+        
+        ctx.fillStyle = '#64748b';
+        ctx.font = 'bold 12px Arial'; // Etwas größer
+        ctx.textAlign = 'left';
+        
+        let lx = legX + 15;
+        legItems.forEach(item => {
+            ctx.fillText(`${item.i} ${item.t}`, lx, legY + 25);
+            lx += ctx.measureText(`${item.i} ${item.t}`).width + 25;
+        });
+
+        return canvas;
+    }
+
+    // --- 5. HTML ZU PDF GENERIERUNG ---
+    function generatePdfExport() {
+        const { AppState, Utils } = window.CPR;
+        if (!AppState || !AppState.protocolData || AppState.protocolData.length === 0) {
+            alert("Das Protokoll ist leer. Es gibt nichts zu exportieren.");
+            return;
+        }
+
+        const btnPdf = document.getElementById('btn-run-pdf-export');
+        const origContent = btnPdf ? btnPdf.innerHTML : '';
+        if (btnPdf) btnPdf.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Erstelle PDF...';
+
+        const data = AppState.protocolData;
+        const totalSec = AppState.totalSeconds || 0;
+        
+        let ageStr = AppState.isPediatric ? (AppState.patientWeight ? `Kind (${AppState.patientWeight} kg)` : 'Kind (Gewicht unbek.)') : 'Erwachsener';
+        const arrSec = AppState.arrestSeconds || 0;
+        const compSec = AppState.compressingSeconds || 0;
+        const ccf = arrSec > 0 ? Math.min(100, Math.round((compSec / arrSec) * 100)) : 0;
+
+        const canvas = createTimelineCanvas(data, totalSec);
+        const imgData = canvas.toDataURL('image/png');
+
+        const container = document.createElement('div');
+        container.style.padding = '30px';
+        container.style.fontFamily = 'Arial, sans-serif';
+        container.style.color = '#1e293b';
+        container.style.width = '1000px'; 
+        container.style.backgroundColor = '#ffffff';
+
+        let html = `
+            <div style="border-bottom: 3px solid #E3000F; padding-bottom: 15px; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: flex-end;">
+                <div>
+                    <h1 style="margin: 0; font-size: 28px; color: #0f172a; text-transform: uppercase; letter-spacing: 1px;">Reanimationsprotokoll</h1>
+                    <p style="margin: 5px 0 0 0; color: #64748b; font-size: 12px; font-weight: bold; letter-spacing: 2px;">Generiert durch CPR Assist</p>
+                </div>
+                <div style="text-align: right; color: #64748b; font-size: 14px;">
+                    <strong>Datum:</strong> ${new Date().toLocaleDateString()}<br>
+                    <strong>Einsatzbeginn:</strong> ${AppState.startTime || '--:--'}
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 15px; margin-bottom: 30px;">
+                <div style="flex: 1; background: #f8fafc; padding: 15px; border-radius: 12px; border: 1px solid #e2e8f0;">
+                    <span style="font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 1px;">Patient</span><br>
+                    <span style="font-size: 18px; font-weight: bold; color: #0f172a;">${ageStr}</span>
+                </div>
+                <div style="flex: 1; background: #f8fafc; padding: 15px; border-radius: 12px; border: 1px solid #e2e8f0;">
+                    <span style="font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 1px;">Gesamtdauer</span><br>
+                    <span style="font-size: 18px; font-weight: bold; color: #0f172a;">${Utils.formatTime(totalSec)}</span>
+                </div>
+                <div style="flex: 1; background: #f8fafc; padding: 15px; border-radius: 12px; border: 1px solid #e2e8f0;">
+                    <span style="font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 1px;">CCF (Kompression)</span><br>
+                    <span style="font-size: 18px; font-weight: bold; color: ${ccf >= 80 ? '#10b981' : '#E3000F'};">${ccf}%</span>
+                </div>
+                <div style="flex: 1; background: #f8fafc; padding: 15px; border-radius: 12px; border: 1px solid #e2e8f0;">
+                    <span style="font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 1px;">Therapie</span><br>
+                    <span style="font-size: 16px; font-weight: bold; color: #0f172a;">
+                        ⚡ ${AppState.shockCount || 0}x &bull; 💉 ${AppState.adrCount || 0}x Adr.
+                    </span>
+                </div>
+            </div>
+
+            <!-- GRAFISCHE ZEITLEISTE -->
+            <h3 style="margin: 0 0 10px 0; font-size: 14px; text-transform: uppercase; color: #64748b; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">Grafischer Ablauf</h3>
+            <div style="width: 100%; overflow: hidden; margin-bottom: 30px; border: 1px solid #e2e8f0; border-radius: 12px; background: #ffffff;">
+                <img src="${imgData}" style="width: 100%; height: auto; display: block;">
+            </div>
+
+            <!-- DETAILLIERTES LOGBUCH -->
+            <h3 style="margin: 0 0 15px 0; font-size: 14px; text-transform: uppercase; color: #64748b; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">Vollständige Dokumentation</h3>
+            <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+                <thead>
+                    <tr style="background: #f1f5f9; text-align: left;">
+                        <th style="padding: 10px; border-bottom: 2px solid #cbd5e1; width: 120px;">Uhrzeit</th>
+                        <th style="padding: 10px; border-bottom: 2px solid #cbd5e1; width: 100px;">Relativ</th>
+                        <th style="padding: 10px; border-bottom: 2px solid #cbd5e1;">Maßnahme / Ereignis</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+        data.forEach((item, index) => {
+            const bg = index % 2 === 0 ? '#ffffff' : '#f8fafc';
+            const relTime = Utils.formatRelative(item.secondsFromStart);
+            html += `
+                <tr style="background: ${bg}; border-bottom: 1px solid #e2e8f0;">
+                    <td style="padding: 8px 10px; color: #64748b;">${item.time}</td>
+                    <td style="padding: 8px 10px; font-weight: bold; color: #E3000F;">${relTime}</td>
+                    <td style="padding: 8px 10px; font-weight: bold; color: #334155;">${item.action}</td>
+                </tr>
+            `;
+        });
+
+        html += `
+                </tbody>
+            </table>
+            
+            <div style="margin-top: 30px; font-size: 10px; color: #94a3b8; text-align: center;">
+                Dieses Protokoll wurde maschinell erstellt. Alle Angaben sind vom Teamführer auf fachliche Korrektheit zu prüfen.
+            </div>
+        `;
+        container.innerHTML = html;
+
+        const opt = {
+            margin:       10,
+            filename:     'CPR_Protokoll_' + new Date().toLocaleDateString().replace(/\./g, '-') + '.pdf',
+            image:        { type: 'jpeg', quality: 0.98 },
+            html2canvas:  { scale: 2, useCORS: true, letterRendering: true },
+            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+
+        html2pdf().set(opt).from(container).save().then(() => {
+            if (btnPdf) btnPdf.innerHTML = origContent;
+            const em = document.getElementById('export-modal');
+            if (em) em.classList.replace('flex', 'hidden');
+            if (window.CPR.Utils && window.CPR.Utils.vibrate) window.CPR.Utils.vibrate(30);
+        }).catch(err => {
+            console.error("PDF Export Error: ", err);
+            alert("Fehler beim PDF Export. Bitte versuche es noch einmal.");
+            if (btnPdf) btnPdf.innerHTML = origContent;
+        });
+    }
+
+    function generateTxtExport() {
+        const { AppState, Utils } = window.CPR;
+        if (!AppState || !AppState.protocolData || AppState.protocolData.length === 0) {
+            alert("Das Protokoll ist leer.");
+            return;
+        }
+        
+        const data = AppState.protocolData;
+        let text = "🚨 REANIMATIONSPROTOKOLL\n";
+        text += "Datum: " + new Date().toLocaleDateString() + "\n";
+        text += "Start: " + (AppState.startTime || '--:--') + "\n";
+        text += "Dauer: " + Utils.formatTime(AppState.totalSeconds || 0) + "\n\n";
+        text += "--- VERLAUF ---\n";
+        
+        data.forEach(item => {
+            if (item.action.includes('Kompression PAUSE') || item.action.includes('Kompression FORTGESETZT')) return;
+            text += `[+${Utils.formatTime(item.secondsFromStart)}] ${item.action}\n`;
+        });
+        
+        text += "\nGeneriert mit CPR Assist";
+
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(text).then(() => {
+                if(Utils.vibrate) Utils.vibrate(30);
+                const btnTxt = document.getElementById('btn-run-txt-export');
+                if(btnTxt) {
+                    const oldHtml = btnTxt.innerHTML;
+                    btnTxt.innerHTML = '<i class="fa-solid fa-check text-lg"></i> Kopiert!';
+                    btnTxt.classList.replace('bg-blue-50', 'bg-emerald-50');
+                    btnTxt.classList.replace('text-blue-700', 'text-emerald-700');
+                    setTimeout(() => {
+                        btnTxt.innerHTML = oldHtml;
+                        btnTxt.classList.replace('bg-emerald-50', 'bg-blue-50');
+                        btnTxt.classList.replace('text-emerald-700', 'text-blue-700');
+                    }, 2000);
+                }
+            }).catch(err => {
+                alert("Konnte Text nicht kopieren:\n" + text);
+            });
+        } else {
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.position = "fixed";
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            try { document.execCommand('copy'); if(Utils.vibrate) Utils.vibrate(30); alert("Text kopiert!"); } catch (err) { alert("Kopieren fehlgeschlagen."); }
+            document.body.removeChild(textArea);
+        }
+    }
+
+    function init() {
+        const btnPdf = document.getElementById('btn-run-pdf-export');
+        if (btnPdf) btnPdf.addEventListener('click', generatePdfExport);
+        
+        const btnTxt = document.getElementById('btn-run-txt-export');
+        if (btnTxt) btnTxt.addEventListener('click', generateTxtExport);
+        
+        const btnDebriefExport = document.getElementById('btn-debrief-export');
+        if (btnDebriefExport) {
+            btnDebriefExport.addEventListener('click', () => {
+                const em = document.getElementById('export-modal');
+                if (em) em.classList.replace('hidden', 'flex');
+            });
+        }
+    }
+
+    return { init: init };
+
+})();
+
+document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+        if (window.CPR && window.CPR.Export) window.CPR.Export.init();
+    }, 150);
+});

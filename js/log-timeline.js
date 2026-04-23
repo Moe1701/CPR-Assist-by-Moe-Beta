@@ -1,0 +1,260 @@
+/**
+ * CPR Assist - Log Timeline Modul (V25 - 2-Minuten Grid Edition)
+ * - MEDIZINISCHES UX-UPDATE: Die Zeitlinie ist nun ein horizontales S-Grid (1 Zeile = 1 Zyklus = 120s).
+ * - Algorithmus-Compliance auf einen Blick (Schocks rechtsbündig, Adrenalin im Takt).
+ * - Behält Liste und SBAR/Summary Ansicht bei.
+ * - Icon-Logik ist 100% synchron mit export.js.
+ */
+
+window.CPR = window.CPR || {};
+
+window.CPR.LogTimeline = (function() {
+    let currentView = 'list'; 
+    
+    // --- 1. ICON LOGIK (100% Synchron mit export.js) ---
+    function getIconData(txt) {
+        if (!txt) return null;
+        const t = txt.toLowerCase();
+        
+        if (t.includes('hits') || t.includes('sampler') || t.includes('anamnese')) return { icon: '📋', type: 'info', color: 'text-slate-500', bg: 'bg-white' };
+        if (t.includes('schock')) return { icon: '⚡', type: 'shock', color: 'text-amber-500', bg: 'bg-amber-50' };
+        if (t.includes('adrenalin')) return { icon: '💉', type: 'adr', color: 'text-[#E3000F]', bg: 'bg-red-50' };
+        if (t.includes('amiodaron') || t.includes('amio')) return { icon: '💊', type: 'amio', color: 'text-purple-600', bg: 'bg-purple-50' };
+        if (t.includes('atemweg') || t.includes('eti') || t.includes('lts') || t.includes('igel') || t.includes('beatmung')) return { icon: '🫁', type: 'airway', color: 'text-cyan-600', bg: 'bg-cyan-50' };
+        if (t.includes('zugang') || t.includes('i.v.') || t.includes('i.o.')) return { icon: '🩸', type: 'access', color: 'text-indigo-600', bg: 'bg-indigo-50' };
+        if (t.includes('start rea') || t.includes('einsatz gestartet') || t.includes('patient:')) return { icon: '▶️', type: 'start', color: 'text-emerald-600', bg: 'bg-emerald-50' };
+        if (t.includes('rosc') || t.includes('abbruch') || t.includes('ende')) return { icon: '🏁', type: 'end', color: 'text-slate-800', bg: 'bg-slate-200' };
+        
+        return { icon: '🔹', type: 'default', color: 'text-slate-400', bg: 'bg-slate-50' };
+    }
+
+    // --- 2. LOGS PARSEN (Macht die Zeitstempel berechenbar) ---
+    function parseLogs() {
+        const rawLogs = window.CPR.Globals?.sysLogs || [];
+        if (rawLogs.length === 0) return [];
+
+        let parsed = [];
+        let startTimeSec = null;
+
+        rawLogs.forEach(log => {
+            // Erkennt das Format "HH:MM:SS: Text..."
+            const match = log.match(/^(\d{2}:\d{2}:\d{2}):\s*(.*)$/);
+            if (match) {
+                const timeStr = match[1];
+                const text = match[2];
+                const parts = timeStr.split(':');
+                const absoluteSec = parseInt(parts[0]) * 3600 + parseInt(parts[1]) * 60 + parseInt(parts[2]);
+
+                if (startTimeSec === null) startTimeSec = absoluteSec;
+
+                let relativeSec = absoluteSec - startTimeSec;
+                if (relativeSec < 0) relativeSec += 24 * 3600; // Falls ein Einsatz exakt um Mitternacht stattfindet
+
+                parsed.push({
+                    raw: log,
+                    timeStr: timeStr,
+                    text: text,
+                    relativeSec: relativeSec,
+                    iconData: getIconData(text)
+                });
+            }
+        });
+        return parsed;
+    }
+
+    // --- 3. DIE LISTEN-ANSICHT (Klassischer Kassenbon) ---
+    function renderList(container) {
+        const logs = parseLogs();
+        if (logs.length === 0) {
+            container.innerHTML = '<div class="p-6 text-center text-slate-400 font-bold text-xs uppercase tracking-widest mt-10">Keine Einträge vorhanden</div>';
+            return;
+        }
+
+        let html = '<div class="p-4 space-y-2 pb-24">';
+        logs.forEach(l => {
+            html += `
+            <div class="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex items-center gap-3">
+                <div class="w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${l.iconData.bg} border border-slate-100 shadow-inner">
+                    <span class="${l.iconData.color} text-lg drop-shadow-sm">${l.iconData.icon}</span>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">${l.timeStr} <span class="text-slate-300 mx-1">|</span> +${window.CPR.Utils?.formatTime(l.relativeSec) || '00:00'}</div>
+                    <div class="text-xs font-bold text-slate-700 leading-tight">${l.text}</div>
+                </div>
+            </div>`;
+        });
+        html += '</div>';
+        container.innerHTML = html;
+    }
+
+    // --- 4. DIE ÜBERGABE-ANSICHT (SBAR / Schockraum) ---
+    function renderSummary(container) {
+        const logs = parseLogs();
+        const state = window.CPR.AppState || {};
+        
+        let totalTime = "00:00";
+        if(logs.length > 0) {
+            totalTime = window.CPR.Utils?.formatTime(logs[logs.length-1].relativeSec) || "00:00";
+        }
+        
+        // Zählungen aus dem AppState (oder Fallback aus den Logs)
+        let adrCount = state.adrCount || logs.filter(l => l.text.toLowerCase().includes('adrenalin')).length;
+        let amioCount = state.amioCount || logs.filter(l => l.text.toLowerCase().includes('amiodaron')).length;
+        let shockCount = state.shockCount || logs.filter(l => l.text.toLowerCase().includes('schock abgegeben')).length;
+        let ccf = document.getElementById('ccf-display')?.innerText || "0%";
+        let airway = state.airwayLabel || "Nicht dokumentiert";
+        let zugang = state.zugangLabel || "Nicht dokumentiert";
+
+        container.innerHTML = `
+        <div class="p-4 space-y-3 pb-24">
+            <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 border-b border-slate-100 pb-2">Einsatz-Metriken</h4>
+                <div class="grid grid-cols-2 gap-y-4 gap-x-2">
+                    <div><span class="block text-[9px] font-bold text-slate-400 uppercase">Dauer</span><span class="text-sm font-black text-slate-800">${totalTime}</span></div>
+                    <div><span class="block text-[9px] font-bold text-slate-400 uppercase">CCF</span><span class="text-sm font-black text-slate-800">${ccf}</span></div>
+                    <div><span class="block text-[9px] font-bold text-amber-500 uppercase">Schocks</span><span class="text-sm font-black text-slate-800">${shockCount}</span></div>
+                    <div><span class="block text-[9px] font-bold text-[#E3000F] uppercase">Adrenalin</span><span class="text-sm font-black text-slate-800">${adrCount} mg</span></div>
+                    <div class="col-span-2"><span class="block text-[9px] font-bold text-purple-500 uppercase">Amiodaron</span><span class="text-sm font-black text-slate-800">${amioCount > 0 ? (amioCount === 1 ? '300 mg' : '450 mg') : '0 mg'}</span></div>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 border-b border-slate-100 pb-2">Interventionen</h4>
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between"><span class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1.5"><i class="fa-solid fa-lungs text-cyan-500"></i> Atemweg</span><span class="text-[11px] font-black text-slate-800">${airway}</span></div>
+                    <div class="flex items-center justify-between"><span class="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1.5"><i class="fa-solid fa-droplet text-indigo-500"></i> Zugang</span><span class="text-[11px] font-black text-slate-800">${zugang}</span></div>
+                </div>
+            </div>
+        </div>
+        `;
+    }
+
+    // --- 5. DIE NEUE ZEITLINIE (120-Sekunden / 2-Minuten Grid-System) ---
+    function renderTimeline(container) {
+        const logs = parseLogs();
+        if (logs.length === 0) {
+            container.innerHTML = '<div class="p-6 text-center text-slate-400 font-bold text-xs uppercase tracking-widest mt-10">Keine Einträge vorhanden</div>';
+            return;
+        }
+
+        // Finde die maximale Zeit, um zu berechnen, wie viele 2-Minuten Blöcke wir brauchen.
+        const maxSec = logs[logs.length - 1].relativeSec;
+        // Wir erzwingen IMMER mindestens 5 Zeilen (10 Minuten) für das perfekte Layout-Gefühl
+        const totalCycles = Math.max(5, Math.ceil((maxSec + 1) / 120));
+
+        let html = '<div class="p-4 space-y-3 pb-24">';
+
+        for (let i = 0; i < totalCycles; i++) {
+            const startMin = i * 2;
+            const endMin = (i + 1) * 2;
+            const cycleStartSec = i * 120;
+            const cycleEndSec = (i + 1) * 120;
+
+            // Filtere alle Events, die genau in dieses 120s Fenster fallen
+            const cycleLogs = logs.filter(l => l.relativeSec >= cycleStartSec && l.relativeSec < cycleEndSec);
+
+            html += `
+            <div class="relative bg-white border border-slate-200 rounded-xl p-3 shadow-sm h-[85px] w-full shrink-0 flex flex-col justify-end pb-4">
+                <span class="absolute top-2 left-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Zyklus ${i+1} <span class="opacity-50 ml-1">(${startMin}-${endMin} Min)</span></span>
+                
+                <!-- Die horizontale Zeitleiste für 120 Sekunden -->
+                <div class="relative w-full h-2">
+                    <!-- Der graue Track -->
+                    <div class="absolute inset-y-0 left-0 w-full h-1.5 bg-slate-100 border border-slate-200 rounded-full top-1/2 -translate-y-1/2"></div>
+                    
+                    <!-- Orientierungs-Ticks (Alle 30 Sekunden) -->
+                    <div class="absolute top-1/2 -translate-y-1/2 w-[2px] h-3 bg-slate-300 rounded-full" style="left: 25%"></div>
+                    <div class="absolute top-1/2 -translate-y-1/2 w-[2px] h-4 bg-slate-400 rounded-full" style="left: 50%"></div>
+                    <div class="absolute top-1/2 -translate-y-1/2 w-[2px] h-3 bg-slate-300 rounded-full" style="left: 75%"></div>
+            `;
+
+            // Positioniere jedes Event absolut auf dem X-Prozentsatz der 120 Sekunden
+            cycleLogs.forEach(log => {
+                const secInCycle = log.relativeSec - cycleStartSec;
+                const pct = (secInCycle / 120) * 100;
+                const icon = log.iconData;
+
+                // -ml-3 (Margin-Left -12px) zentriert das 24x24 Icon exakt auf dem Prozent-Wert!
+                html += `
+                <div class="absolute top-1/2 -translate-y-1/2 -ml-[14px] w-[28px] h-[28px] rounded-full flex items-center justify-center text-[13px] shadow-sm border border-slate-200 z-10 ${icon.bg} ${icon.color}"
+                     style="left: ${pct}%;"
+                     title="${log.timeStr} - ${log.text}">
+                    ${icon.icon}
+                </div>
+                `;
+            });
+
+            html += `
+                </div>
+            </div>`;
+        }
+
+        html += '</div>';
+        container.innerHTML = html;
+    }
+
+    // --- RENDER CONTROLLER ---
+    function renderCurrentView() {
+        const container = document.getElementById('protocol-list');
+        if (!container) return;
+        
+        if (currentView === 'list') renderList(container);
+        else if (currentView === 'summary') renderSummary(container);
+        else if (currentView === 'timeline') renderTimeline(container);
+    }
+
+    function switchTab(view) {
+        currentView = view;
+        
+        ['btn-view-list', 'btn-view-summary', 'btn-view-timeline'].forEach(id => {
+            const btn = document.getElementById(id);
+            if (!btn) return;
+            if (id === 'btn-view-' + view) {
+                btn.className = 'px-3 py-1.5 rounded-lg text-[10px] font-black uppercase bg-white text-slate-800 shadow-sm transition-all';
+            } else {
+                btn.className = 'px-3 py-1.5 rounded-lg text-[10px] font-black uppercase text-slate-500 transition-all border border-transparent';
+            }
+        });
+        
+        renderCurrentView();
+    }
+
+    function init() {
+        // Tab Buttons binden
+        const btnTime = document.getElementById('btn-view-timeline');
+        if (btnTime) btnTime.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); if(window.CPR.Utils) window.CPR.Utils.vibrate(20); switchTab('timeline'); });
+        
+        const btnList = document.getElementById('btn-view-list');
+        if (btnList) btnList.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); if(window.CPR.Utils) window.CPR.Utils.vibrate(20); switchTab('list'); });
+        
+        const btnSumm = document.getElementById('btn-view-summary');
+        if (btnSumm) btnSumm.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); if(window.CPR.Utils) window.CPR.Utils.vibrate(20); switchTab('summary'); });
+
+        // Aktualisieren wenn das Panel hochfährt
+        const btnToggle = document.getElementById('btn-toggle-protocol');
+        if (btnToggle) {
+            btnToggle.addEventListener('click', () => { renderCurrentView(); });
+        }
+        
+        const btnDebrief = document.getElementById('btn-rosc-end');
+        if(btnDebrief) {
+            btnDebrief.addEventListener('click', () => { setTimeout(renderCurrentView, 500); });
+        }
+
+        // Setzt beim Start den Listen-Tab
+        setTimeout(() => { switchTab('list'); }, 100);
+    }
+
+    return {
+        init: init,
+        forceRender: renderCurrentView 
+    };
+
+})();
+
+// Autostart nach DOM-Laden
+document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+        if (window.CPR && window.CPR.LogTimeline) window.CPR.LogTimeline.init();
+    }, 200);
+});
