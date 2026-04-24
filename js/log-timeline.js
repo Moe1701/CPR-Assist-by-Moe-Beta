@@ -1,5 +1,5 @@
 /**
- * CPR Assist - Log Timeline Modul (V25 - 2-Minuten Grid Edition)
+ * CPR Assist - Log Timeline Modul (V26 - Pediatric Safe & 2-Minuten Grid)
  * - MEDIZINISCHES UX-UPDATE: Die Zeitlinie ist nun ein horizontales S-Grid (1 Zeile = 1 Zyklus = 120s).
  * - Algorithmus-Compliance auf einen Blick (Schocks rechtsbündig, Adrenalin im Takt).
  * - Behält Liste und SBAR/Summary Ansicht bei.
@@ -28,9 +28,8 @@ window.CPR.LogTimeline = (function() {
         return { icon: '🔹', type: 'default', color: 'text-slate-400', bg: 'bg-slate-50' };
     }
 
-    // --- 2. LOGS PARSEN (Macht die Zeitstempel berechenbar) ---
+    // --- 2. LOGS PARSEN (Greift nun auf medizinische db protocolData zu) ---
     function parseLogs() {
-        // BUGFIX: Greift jetzt auf die echte medizinische Datenbank zu, nicht mehr auf das System-Debug-Log!
         const rawLogs = window.CPR.AppState?.protocolData || [];
         if (rawLogs.length === 0) return [];
 
@@ -86,11 +85,30 @@ window.CPR.LogTimeline = (function() {
         
         // Zählungen aus dem AppState (oder Fallback aus den Logs)
         let adrCount = state.adrCount || logs.filter(l => l.text.toLowerCase().includes('adrenalin')).length;
-        let amioCount = state.amioCount || logs.filter(l => l.text.toLowerCase().includes('amiodaron')).length;
+        let amioCount = state.amioCount || logs.filter(l => l.text.toLowerCase().includes('amiodaron') || l.text.toLowerCase().includes('amio')).length;
         let shockCount = state.shockCount || logs.filter(l => l.text.toLowerCase().includes('schock abgegeben')).length;
         let ccf = document.getElementById('ccf-display')?.innerText || "0%";
         let airway = state.airwayLabel || "Nicht dokumentiert";
         let zugang = state.zugangLabel || "Nicht dokumentiert";
+
+        // Sichere Dosis-Berechnung (Erwachsener vs. Kind)
+        let adrTotal = "0 mg";
+        if (adrCount > 0) {
+            if (state.isPediatric && state.patientWeight) {
+                adrTotal = (adrCount * Math.round(state.patientWeight * 10)) + " µg";
+            } else {
+                adrTotal = adrCount + " mg";
+            }
+        }
+
+        let amioTotal = "0 mg";
+        if (amioCount > 0) {
+            if (state.isPediatric && state.patientWeight) {
+                amioTotal = (amioCount * Math.round(state.patientWeight * 5)) + " mg";
+            } else {
+                amioTotal = amioCount === 1 ? '300 mg' : '450 mg';
+            }
+        }
 
         container.innerHTML = `
         <div class="p-4 space-y-3 pb-24">
@@ -100,8 +118,8 @@ window.CPR.LogTimeline = (function() {
                     <div><span class="block text-[9px] font-bold text-slate-400 uppercase">Dauer</span><span class="text-sm font-black text-slate-800">${totalTime}</span></div>
                     <div><span class="block text-[9px] font-bold text-slate-400 uppercase">CCF</span><span class="text-sm font-black text-slate-800">${ccf}</span></div>
                     <div><span class="block text-[9px] font-bold text-amber-500 uppercase">Schocks</span><span class="text-sm font-black text-slate-800">${shockCount}</span></div>
-                    <div><span class="block text-[9px] font-bold text-[#E3000F] uppercase">Adrenalin</span><span class="text-sm font-black text-slate-800">${adrCount} mg</span></div>
-                    <div class="col-span-2"><span class="block text-[9px] font-bold text-purple-500 uppercase">Amiodaron</span><span class="text-sm font-black text-slate-800">${amioCount > 0 ? (amioCount === 1 ? '300 mg' : '450 mg') : '0 mg'}</span></div>
+                    <div><span class="block text-[9px] font-bold text-[#E3000F] uppercase">Adrenalin</span><span class="text-sm font-black text-slate-800">${adrTotal} <span class="text-[9px] text-slate-400 font-bold">(${adrCount}x)</span></span></div>
+                    <div class="col-span-2"><span class="block text-[9px] font-bold text-purple-500 uppercase">Amiodaron</span><span class="text-sm font-black text-slate-800">${amioTotal} <span class="text-[9px] text-slate-400 font-bold">(${amioCount}x)</span></span></div>
                 </div>
             </div>
 
@@ -116,7 +134,7 @@ window.CPR.LogTimeline = (function() {
         `;
     }
 
-    // --- 5. DIE NEUE ZEITLINIE (120-Sekunden / 2-Minuten Grid-System) ---
+    // --- 5. DIE ZEITLINIE (120-Sekunden / 2-Minuten Grid-System) ---
     function renderTimeline(container) {
         const logs = parseLogs();
         if (logs.length === 0) {
@@ -124,9 +142,7 @@ window.CPR.LogTimeline = (function() {
             return;
         }
 
-        // Finde die maximale Zeit, um zu berechnen, wie viele 2-Minuten Blöcke wir brauchen.
         const maxSec = logs[logs.length - 1].relativeSec;
-        // Wir erzwingen IMMER mindestens 5 Zeilen (10 Minuten) für das perfekte Layout-Gefühl
         const totalCycles = Math.max(5, Math.ceil((maxSec + 1) / 120));
 
         let html = '<div class="p-4 space-y-3 pb-24">';
@@ -137,31 +153,25 @@ window.CPR.LogTimeline = (function() {
             const cycleStartSec = i * 120;
             const cycleEndSec = (i + 1) * 120;
 
-            // Filtere alle Events, die genau in dieses 120s Fenster fallen
             const cycleLogs = logs.filter(l => l.relativeSec >= cycleStartSec && l.relativeSec < cycleEndSec);
 
             html += `
             <div class="relative bg-white border border-slate-200 rounded-xl p-3 shadow-sm h-[85px] w-full shrink-0 flex flex-col justify-end pb-4">
                 <span class="absolute top-2 left-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Zyklus ${i+1} <span class="opacity-50 ml-1">(${startMin}-${endMin} Min)</span></span>
                 
-                <!-- Die horizontale Zeitleiste für 120 Sekunden -->
                 <div class="relative w-full h-2">
-                    <!-- Der graue Track -->
                     <div class="absolute inset-y-0 left-0 w-full h-1.5 bg-slate-100 border border-slate-200 rounded-full top-1/2 -translate-y-1/2"></div>
                     
-                    <!-- Orientierungs-Ticks (Alle 30 Sekunden) -->
                     <div class="absolute top-1/2 -translate-y-1/2 w-[2px] h-3 bg-slate-300 rounded-full" style="left: 25%"></div>
                     <div class="absolute top-1/2 -translate-y-1/2 w-[2px] h-4 bg-slate-400 rounded-full" style="left: 50%"></div>
                     <div class="absolute top-1/2 -translate-y-1/2 w-[2px] h-3 bg-slate-300 rounded-full" style="left: 75%"></div>
             `;
 
-            // Positioniere jedes Event absolut auf dem X-Prozentsatz der 120 Sekunden
             cycleLogs.forEach(log => {
                 const secInCycle = log.relativeSec - cycleStartSec;
                 const pct = (secInCycle / 120) * 100;
                 const icon = log.iconData;
 
-                // -ml-3 (Margin-Left -12px) zentriert das 24x24 Icon exakt auf dem Prozent-Wert!
                 html += `
                 <div class="absolute top-1/2 -translate-y-1/2 -ml-[14px] w-[28px] h-[28px] rounded-full flex items-center justify-center text-[13px] shadow-sm border border-slate-200 z-10 ${icon.bg} ${icon.color}"
                      style="left: ${pct}%;"
@@ -207,7 +217,6 @@ window.CPR.LogTimeline = (function() {
     }
 
     function init() {
-        // Tab Buttons binden
         const btnTime = document.getElementById('btn-view-timeline');
         if (btnTime) btnTime.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); if(window.CPR.Utils) window.CPR.Utils.vibrate(20); switchTab('timeline'); });
         
@@ -217,7 +226,6 @@ window.CPR.LogTimeline = (function() {
         const btnSumm = document.getElementById('btn-view-summary');
         if (btnSumm) btnSumm.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); if(window.CPR.Utils) window.CPR.Utils.vibrate(20); switchTab('summary'); });
 
-        // Aktualisieren wenn das Panel hochfährt
         const btnToggle = document.getElementById('btn-toggle-protocol');
         if (btnToggle) {
             btnToggle.addEventListener('click', () => { renderCurrentView(); });
@@ -228,7 +236,6 @@ window.CPR.LogTimeline = (function() {
             btnDebrief.addEventListener('click', () => { setTimeout(renderCurrentView, 500); });
         }
 
-        // Setzt beim Start den Listen-Tab
         setTimeout(() => { switchTab('list'); }, 100);
     }
 
@@ -239,7 +246,6 @@ window.CPR.LogTimeline = (function() {
 
 })();
 
-// Autostart nach DOM-Laden
 document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
         if (window.CPR && window.CPR.LogTimeline) window.CPR.LogTimeline.init();
