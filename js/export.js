@@ -1,8 +1,8 @@
 /**
- * CPR Assist - Export Modul (V18 - Smart Medical Export)
- * - ÜBERGABE-MODUS: SAMPLER, HITS & Aggregierte Hard Facts (OHNE Zeitdoku/Chronologie).
- * - DEBRIEFING-MODUS: SAMPLER, HITS, Chronologisches Log UND das 5-Linien "Notenblatt".
- * - NOTENBLATT ENGINE: Generiert dynamisch ein S-Grid (120s pro Zeile, mind. 5 Zeilen).
+ * CPR Assist - Export Modul (V19 - Smart Tab Detection & Eigene Seite)
+ * - SMART EXPORT: Prüft live, welcher Tab in der App offen ist (Übergabe vs. Liste).
+ * - PAGE BREAK: Das grafische 5-Linien-Notenblatt bekommt im PDF eine eigene Seite!
+ * - BULLETPROOF CANVAS: Fallbacks für ältere iPads eingebaut.
  * - Dateinamen inkl. Datum und Uhrzeit.
  */
 
@@ -35,6 +35,25 @@ window.CPR.Export = (function() {
         return { icon: '🔹', type: 'default' };
     }
 
+    // --- BULLETPROOF RECTANGLE (Für ältere iPads / Safari) ---
+    function drawSafeRoundRect(ctx, x, y, w, h, r) {
+        if (ctx.roundRect) {
+            ctx.beginPath();
+            ctx.roundRect(x, y, w, h, r);
+        } else {
+            ctx.beginPath();
+            ctx.moveTo(x + r, y);
+            ctx.lineTo(x + w - r, y);
+            ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+            ctx.lineTo(x + w, y + h - r);
+            ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+            ctx.lineTo(x + r, y + h);
+            ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+            ctx.lineTo(x, y + r);
+            ctx.quadraticCurveTo(x, y, x + r, y);
+        }
+    }
+
     // --- 2. CANVAS NOTENBLATT ENGINE (Nur für Debriefing) ---
     function createTimelineCanvas(data) {
         const events = data.map(d => ({
@@ -43,16 +62,13 @@ window.CPR.Export = (function() {
             timeStr: window.CPR.Utils.formatRelative(d.secondsFromStart)
         })).filter(d => d.iconData !== null);
 
-        // Bestimme das absolute Ende des Einsatzes
         const maxSec = events.length > 0 ? events[events.length - 1].secondsFromStart : 0;
-        
-        // Es werden IMMER mindestens 5 Zeilen (10 Minuten) gezeichnet
         const totalCycles = Math.max(5, Math.ceil((maxSec + 1) / 120));
 
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
         
-        const scale = 2; // Für gestochen scharfen PDF-Druck (Retina)
+        const scale = 2; 
         const rowHeight = 160; 
         const baseWidth = 1200; 
         const baseHeight = 120 + (totalCycles * rowHeight); 
@@ -66,7 +82,7 @@ window.CPR.Export = (function() {
 
         // LEGENDE (Oben)
         ctx.fillStyle = '#f8fafc';
-        ctx.roundRect(40, 20, baseWidth - 80, 50, 8);
+        drawSafeRoundRect(ctx, 40, 20, baseWidth - 80, 50, 8);
         ctx.fill();
         ctx.strokeStyle = '#e2e8f0';
         ctx.lineWidth = 1;
@@ -81,13 +97,12 @@ window.CPR.Export = (function() {
         const paddingX = 80;
         const usableWidth = baseWidth - (paddingX * 2);
 
-        // SCHLEIFE ÜBER ALLE ZYKLEN (Zeilen)
         for (let i = 0; i < totalCycles; i++) {
             const cycleStartSec = i * 120;
             const cycleEndSec = (i + 1) * 120;
             const lineY = 150 + (i * rowHeight);
 
-            // 1. Die Hauptlinie (120s)
+            // Hauptlinie
             ctx.beginPath();
             ctx.moveTo(paddingX, lineY);
             ctx.lineTo(baseWidth - paddingX, lineY);
@@ -96,32 +111,24 @@ window.CPR.Export = (function() {
             ctx.lineCap = 'round';
             ctx.stroke();
 
-            // 2. Ticks & Labels (Start, 60s, 120s)
+            // Ticks
             ctx.fillStyle = '#94a3b8';
             ctx.font = 'bold 12px Arial';
             ctx.textAlign = 'center';
             
-            // Start-Tick
             ctx.fillRect(paddingX - 1, lineY - 6, 2, 12);
             ctx.fillText(`${i*2} Min`, paddingX, lineY + 20);
-            
-            // 60s-Tick
             ctx.fillRect(paddingX + (usableWidth/2) - 1, lineY - 4, 2, 8);
-            
-            // End-Tick
             ctx.fillRect(paddingX + usableWidth - 1, lineY - 6, 2, 12);
             ctx.fillText(`${(i+1)*2} Min`, paddingX + usableWidth, lineY + 20);
 
-            // 3. Events für diese Zeile filtern
             const cycleEvents = events.filter(e => e.secondsFromStart >= cycleStartSec && e.secondsFromStart < cycleEndSec);
 
-            // 4. Events als Fähnchen zeichnen
             cycleEvents.forEach((ev, index) => {
                 const secInCycle = ev.secondsFromStart - cycleStartSec;
                 const pct = secInCycle / 120;
                 const x = paddingX + (pct * usableWidth);
 
-                // Multi-Level Zig-Zag für hohe Dichte [-45, +45, -80, +80]
                 const yOffsets = [-45, 45, -80, 80]; 
                 const yOff = yOffsets[index % yOffsets.length];
                 const isTop = yOff < 0;
@@ -136,7 +143,6 @@ window.CPR.Export = (function() {
                 const boxWidth = textWidth + timeWidth + 45;
                 const boxHalf = boxWidth / 2;
 
-                // Fähnchenmast
                 ctx.beginPath();
                 ctx.moveTo(x, lineY);
                 ctx.lineTo(x, lineY + yOff);
@@ -144,17 +150,15 @@ window.CPR.Export = (function() {
                 ctx.lineWidth = 1.5;
                 ctx.stroke();
 
-                // Box Hintergrund
                 ctx.shadowColor = 'rgba(0,0,0,0.05)';
                 ctx.shadowBlur = 4;
                 ctx.shadowOffsetY = 2;
                 ctx.fillStyle = '#ffffff';
-                ctx.beginPath();
-                ctx.roundRect(x - boxHalf, boxY, boxWidth, boxHeight, 6); 
+                
+                drawSafeRoundRect(ctx, x - boxHalf, boxY, boxWidth, boxHeight, 6); 
                 ctx.fill();
                 ctx.shadowColor = 'transparent';
 
-                // Rahmen je nach Typ
                 let borderColor = '#e2e8f0';
                 if (ev.iconData.type === 'adr') borderColor = '#fca5a5';
                 if (ev.iconData.type === 'amio') borderColor = '#d8b4fe';
@@ -163,18 +167,15 @@ window.CPR.Export = (function() {
                 ctx.lineWidth = 2;
                 ctx.stroke();
 
-                // Text: Zeitstempel
                 ctx.fillStyle = '#E3000F';
                 ctx.font = 'bold 11px monospace';
                 ctx.textAlign = 'left';
                 ctx.fillText(timeStr, x - boxHalf + 10, boxY + boxHeight/2);
 
-                // Text: Icon + Aktion
                 ctx.fillStyle = '#334155';
                 ctx.font = 'bold 11px Arial';
                 ctx.fillText(`${ev.iconData.icon} ${actionText}`, x - boxHalf + 10 + timeWidth + 8, boxY + boxHeight/2);
 
-                // Punkt auf der Hauptlinie
                 ctx.beginPath();
                 ctx.arc(x, lineY, 4, 0, 2 * Math.PI);
                 ctx.fillStyle = '#E3000F';
@@ -197,7 +198,15 @@ window.CPR.Export = (function() {
         const origContent = btnPdf ? btnPdf.innerHTML : '';
         if (btnPdf) btnPdf.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Erstelle PDF...';
 
-        const isSummary = AppState.protocolViewMode === 'summary'; 
+        // 🌟 SMART TAB DETECTION 🌟
+        // Der Export prüft jetzt live, welchen Tab du in der App gerade offen hast!
+        let isSummary = false;
+        const btnSumm = document.getElementById('btn-view-summary');
+        if (btnSumm && (btnSumm.classList.contains('bg-white') || btnSumm.classList.contains('text-slate-800'))) {
+            isSummary = true; // Du stehst auf "Übergabe", also wird das Kurzprotokoll erzeugt!
+        }
+        if (AppState.protocolViewMode === 'summary') isSummary = true; // Fallback für Modal
+
         const data = AppState.protocolData;
         const totalSec = AppState.totalSeconds || 0;
         
@@ -206,7 +215,6 @@ window.CPR.Export = (function() {
         const compSec = AppState.compressingSeconds || 0;
         const ccf = arrSec > 0 ? Math.min(100, Math.round((compSec / arrSec) * 100)) : 0;
 
-        // DATEINAME: Mit Datum und Uhrzeit
         const now = new Date();
         const dateStr = now.toLocaleDateString('de-DE').replace(/\./g, '-');
         const timeStr = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }).replace(':', '');
@@ -219,9 +227,6 @@ window.CPR.Export = (function() {
         container.style.width = '1000px'; 
         container.style.backgroundColor = '#ffffff';
 
-        // -----------------------------------------------------
-        // BLOCK 1: HEADER & METRIKEN (Immer sichtbar)
-        // -----------------------------------------------------
         let html = `
             <div style="border-bottom: 3px solid #E3000F; padding-bottom: 15px; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: flex-end;">
                 <div>
@@ -250,9 +255,6 @@ window.CPR.Export = (function() {
             </div>
         `;
 
-        // -----------------------------------------------------
-        // BLOCK 2: ANAMNESE (SAMPLER / HITS) (Immer sichtbar)
-        // -----------------------------------------------------
         const aData = AppState.anamneseData || {};
         let sLines = [];
         if (aData.beobachtet) sLines.push(`<b>Beobachtet:</b> ${aData.beobachtet}`);
@@ -287,13 +289,8 @@ window.CPR.Export = (function() {
             </div>
         `;
 
-        // -----------------------------------------------------
-        // WEICHENSTELLUNG: ÜBERGABE VS. DEBRIEFING
-        // -----------------------------------------------------
         if (isSummary) {
-            // ---> MODUS ÜBERGABE: Harte Fakten, KEINE Chronologie, KEIN Notenblatt <---
-            
-            // Dosis berechnen
+            // ---> MODUS ÜBERGABE (Kein Notenblatt, Keine Chronologie)
             let adrTotal = "0 mg";
             let adrCount = AppState.adrCount || 0;
             if (adrCount > 0) {
@@ -307,7 +304,7 @@ window.CPR.Export = (function() {
             }
 
             html += `
-                <h3 style="margin: 0 0 10px 0; font-size: 14px; text-transform: uppercase; color: #64748b; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">Harte Fakten / Maßnahmen (Ohne Zeitdoku)</h3>
+                <h3 style="margin: 0 0 10px 0; font-size: 14px; text-transform: uppercase; color: #64748b; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">Harte Fakten / Maßnahmen (Übergabe)</h3>
                 <div style="background: #ffffff; border: 2px solid #e2e8f0; border-radius: 12px; padding: 20px;">
                     <table style="width: 100%; font-size: 16px; border-collapse: collapse;">
                         <tr><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; width: 30%; color: #64748b;">🫁 <strong>Atemweg</strong></td><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-weight: bold;">${AppState.airwayLabel || 'Nicht dokumentiert'}</td></tr>
@@ -320,21 +317,7 @@ window.CPR.Export = (function() {
             `;
             
         } else {
-            // ---> MODUS DEBRIEFING: Notenblatt UND Chronologisches Listenprotokoll <---
-            
-            // 1. Das Canvas Notenblatt einfügen (Vermeidet Seitenumbrüche in sich selbst)
-            const canvas = createTimelineCanvas(data);
-            const imgData = canvas.toDataURL('image/png');
-            html += `
-                <div style="page-break-inside: avoid;">
-                    <h3 style="margin: 0 0 10px 0; font-size: 14px; text-transform: uppercase; color: #64748b; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">Grafischer Ablauf (Compliance Grid)</h3>
-                    <div style="width: 100%; border: 1px solid #e2e8f0; border-radius: 12px; background: #ffffff; margin-bottom: 30px;">
-                        <img src="${imgData}" style="width: 100%; height: auto; display: block; border-radius: 12px;">
-                    </div>
-                </div>
-            `;
-
-            // 2. Die chronologische Tabelle
+            // ---> MODUS DEBRIEFING (Chronologie + Notenblatt auf extra Seite!)
             html += `
                 <h3 style="margin: 0 0 15px 0; font-size: 14px; text-transform: uppercase; color: #64748b; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">Vollständige Chronologie</h3>
                 <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
@@ -364,6 +347,18 @@ window.CPR.Export = (function() {
                     </tbody>
                 </table>
             `;
+
+            // 🌟 EIGENE SEITE FÜR DAS NOTENBLATT (page-break-before: always) 🌟
+            const canvas = createTimelineCanvas(data);
+            const imgData = canvas.toDataURL('image/png');
+            html += `
+                <div style="page-break-before: always; padding-top: 20px;">
+                    <h3 style="margin: 0 0 10px 0; font-size: 14px; text-transform: uppercase; color: #64748b; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">Grafischer Ablauf (Compliance Grid)</h3>
+                    <div style="width: 100%; border: 1px solid #e2e8f0; border-radius: 12px; background: #ffffff; margin-bottom: 30px;">
+                        <img src="${imgData}" style="width: 100%; height: auto; display: block; border-radius: 12px;">
+                    </div>
+                </div>
+            `;
         }
 
         html += `
@@ -373,7 +368,7 @@ window.CPR.Export = (function() {
         `;
         container.innerHTML = html;
 
-        // PDF ENGINE STARTEN
+        // PDF ENGINE
         const opt = {
             margin:       10,
             filename:     filename,
@@ -388,7 +383,6 @@ window.CPR.Export = (function() {
             if (em) em.classList.replace('flex', 'hidden');
             if (window.CPR.Utils && window.CPR.Utils.vibrate) window.CPR.Utils.vibrate(30);
         }).catch(err => {
-            console.error("PDF Export Error: ", err);
             alert("Fehler beim PDF Export.");
             if (btnPdf) btnPdf.innerHTML = origContent;
         });
@@ -401,7 +395,11 @@ window.CPR.Export = (function() {
             alert("Das Protokoll ist leer."); return;
         }
         
-        const isSummary = AppState.protocolViewMode === 'summary';
+        let isSummary = false;
+        const btnSumm = document.getElementById('btn-view-summary');
+        if (btnSumm && (btnSumm.classList.contains('bg-white') || btnSumm.classList.contains('text-slate-800'))) isSummary = true;
+        if (AppState.protocolViewMode === 'summary') isSummary = true;
+
         const data = AppState.protocolData;
         
         let text = "🚨 REANIMATIONSPROTOKOLL " + (isSummary ? "(ÜBERGABE)" : "(VOLLSTÄNDIG)") + "\n";
@@ -409,7 +407,6 @@ window.CPR.Export = (function() {
         text += "Start: " + (AppState.startTime || '--:--') + "\n";
         text += "Dauer: " + Utils.formatTime(AppState.totalSeconds || 0) + "\n\n";
 
-        // ANAMNESE BLOCK (Immer)
         if (AppState.anamneseData) {
             text += "--- ANAMNESE / DIAGNOSTIK ---\n";
             const aData = AppState.anamneseData;
@@ -433,7 +430,6 @@ window.CPR.Export = (function() {
         }
 
         if (isSummary) {
-            // Nur Hard-Facts (Keine Chronologie)
             text += "--- HARTE FAKTEN (MAßNAHMEN) ---\n";
             text += "Atemweg: " + (AppState.airwayLabel || 'Nicht dok.') + "\n";
             text += "Zugang: " + (AppState.zugangLabel || 'Nicht dok.') + "\n";
@@ -441,7 +437,6 @@ window.CPR.Export = (function() {
             text += "Adrenalin Gaben: " + (AppState.adrCount || 0) + "x\n";
             text += "Amiodaron Gaben: " + (AppState.amioCount || 0) + "x\n";
         } else {
-            // Vollständige Zeitleiste
             text += "--- CHRONOLOGIE ---\n";
             data.forEach(item => {
                 text += `[+${Utils.formatTime(item.secondsFromStart)}] ${item.action}\n`;
@@ -450,7 +445,6 @@ window.CPR.Export = (function() {
         
         text += "\nGeneriert mit CPR Assist";
 
-        // Kopier-Logik
         if (navigator.clipboard && window.isSecureContext) {
             navigator.clipboard.writeText(text).then(() => {
                 if(Utils.vibrate) Utils.vibrate(30);
@@ -459,11 +453,9 @@ window.CPR.Export = (function() {
                     const oldHtml = btnTxt.innerHTML;
                     btnTxt.innerHTML = '<i class="fa-solid fa-check text-lg"></i> Kopiert!';
                     btnTxt.classList.replace('bg-blue-50', 'bg-emerald-50');
-                    btnTxt.classList.replace('text-blue-700', 'text-emerald-700');
                     setTimeout(() => {
                         btnTxt.innerHTML = oldHtml;
                         btnTxt.classList.replace('bg-emerald-50', 'bg-blue-50');
-                        btnTxt.classList.replace('text-emerald-700', 'text-blue-700');
                     }, 2000);
                 }
             }).catch(err => { alert("Konnte Text nicht kopieren."); });
