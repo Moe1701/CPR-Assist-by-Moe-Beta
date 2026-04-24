@@ -30,35 +30,22 @@ window.CPR.LogTimeline = (function() {
 
     // --- 2. LOGS PARSEN (Macht die Zeitstempel berechenbar) ---
     function parseLogs() {
-        const rawLogs = window.CPR.Globals?.sysLogs || [];
+        // BUGFIX: Greift jetzt auf die echte medizinische Datenbank zu, nicht mehr auf das System-Debug-Log!
+        const rawLogs = window.CPR.AppState?.protocolData || [];
         if (rawLogs.length === 0) return [];
 
         let parsed = [];
-        let startTimeSec = null;
 
         rawLogs.forEach(log => {
-            // Erkennt das Format "HH:MM:SS: Text..."
-            const match = log.match(/^(\d{2}:\d{2}:\d{2}):\s*(.*)$/);
-            if (match) {
-                const timeStr = match[1];
-                const text = match[2];
-                const parts = timeStr.split(':');
-                const absoluteSec = parseInt(parts[0]) * 3600 + parseInt(parts[1]) * 60 + parseInt(parts[2]);
-
-                if (startTimeSec === null) startTimeSec = absoluteSec;
-
-                let relativeSec = absoluteSec - startTimeSec;
-                if (relativeSec < 0) relativeSec += 24 * 3600; // Falls ein Einsatz exakt um Mitternacht stattfindet
-
-                parsed.push({
-                    raw: log,
-                    timeStr: timeStr,
-                    text: text,
-                    relativeSec: relativeSec,
-                    iconData: getIconData(text)
-                });
-            }
+            parsed.push({
+                raw: log.action,
+                timeStr: log.time,
+                text: log.action,
+                relativeSec: log.secondsFromStart || 0,
+                iconData: getIconData(log.action)
+            });
         });
+        
         return parsed;
     }
 
