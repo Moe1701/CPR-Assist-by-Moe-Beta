@@ -1,9 +1,8 @@
 /**
- * CPR Assist - Log Timeline Modul (V26 - Pediatric Safe & 2-Minuten Grid)
- * - MEDIZINISCHES UX-UPDATE: Die Zeitlinie ist nun ein horizontales S-Grid (1 Zeile = 1 Zyklus = 120s).
- * - Algorithmus-Compliance auf einen Blick (Schocks rechtsbündig, Adrenalin im Takt).
- * - Behält Liste und SBAR/Summary Ansicht bei.
- * - Icon-Logik ist 100% synchron mit export.js.
+ * CPR Assist - Log Timeline Modul (V27 - Zick-Zack & Legende)
+ * - MEDIZINISCHES UX-UPDATE: Zick-Zack Anordnung der Icons verhindert Überlappungen.
+ * - Zentrale, saubere Zeitachse in jedem 2-Minuten-Block.
+ * - Statische Legende für intuitive Lesbarkeit im Stress.
  */
 
 window.CPR = window.CPR || {};
@@ -134,7 +133,7 @@ window.CPR.LogTimeline = (function() {
         `;
     }
 
-    // --- 5. DIE ZEITLINIE (120-Sekunden / 2-Minuten Grid-System) ---
+    // --- 5. DIE ZEITLINIE (120-Sekunden / Zick-Zack Grid) ---
     function renderTimeline(container) {
         const logs = parseLogs();
         if (logs.length === 0) {
@@ -145,7 +144,21 @@ window.CPR.LogTimeline = (function() {
         const maxSec = logs[logs.length - 1].relativeSec;
         const totalCycles = Math.max(5, Math.ceil((maxSec + 1) / 120));
 
-        let html = '<div class="p-4 space-y-3 pb-24">';
+        // 5.1 Die Legende ganz oben
+        let html = `
+        <div class="p-4 space-y-3 pb-24">
+            <div class="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm shrink-0">
+                <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2 text-center">Legende (Zeitachse)</span>
+                <div class="flex flex-wrap justify-center gap-x-3 gap-y-2">
+                    <div class="flex items-center gap-1.5"><div class="w-5 h-5 rounded-full bg-emerald-50 text-emerald-600 border border-slate-100 flex items-center justify-center text-[10px] shadow-sm">▶️</div><span class="text-[9px] font-bold text-slate-600 uppercase">Start</span></div>
+                    <div class="flex items-center gap-1.5"><div class="w-5 h-5 rounded-full bg-amber-50 text-amber-500 border border-slate-100 flex items-center justify-center text-[10px] shadow-sm">⚡</div><span class="text-[9px] font-bold text-slate-600 uppercase">Schock</span></div>
+                    <div class="flex items-center gap-1.5"><div class="w-5 h-5 rounded-full bg-red-50 text-[#E3000F] border border-slate-100 flex items-center justify-center text-[10px] shadow-sm">💉</div><span class="text-[9px] font-bold text-slate-600 uppercase">Adrenalin</span></div>
+                    <div class="flex items-center gap-1.5"><div class="w-5 h-5 rounded-full bg-purple-50 text-purple-600 border border-slate-100 flex items-center justify-center text-[10px] shadow-sm">💊</div><span class="text-[9px] font-bold text-slate-600 uppercase">Amio</span></div>
+                    <div class="flex items-center gap-1.5"><div class="w-5 h-5 rounded-full bg-cyan-50 text-cyan-600 border border-slate-100 flex items-center justify-center text-[10px] shadow-sm">🫁</div><span class="text-[9px] font-bold text-slate-600 uppercase">Atemweg</span></div>
+                    <div class="flex items-center gap-1.5"><div class="w-5 h-5 rounded-full bg-indigo-50 text-indigo-600 border border-slate-100 flex items-center justify-center text-[10px] shadow-sm">🩸</div><span class="text-[9px] font-bold text-slate-600 uppercase">Zugang</span></div>
+                </div>
+            </div>
+        `;
 
         for (let i = 0; i < totalCycles; i++) {
             const startMin = i * 2;
@@ -156,24 +169,31 @@ window.CPR.LogTimeline = (function() {
             const cycleLogs = logs.filter(l => l.relativeSec >= cycleStartSec && l.relativeSec < cycleEndSec);
 
             html += `
-            <div class="relative bg-white border border-slate-200 rounded-xl p-3 shadow-sm h-[85px] w-full shrink-0 flex flex-col justify-end pb-4">
+            <div class="relative bg-white border border-slate-200 rounded-xl p-3 shadow-sm h-[95px] w-full shrink-0 flex flex-col justify-end pb-3 mb-2">
                 <span class="absolute top-2 left-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Zyklus ${i+1} <span class="opacity-50 ml-1">(${startMin}-${endMin} Min)</span></span>
                 
-                <div class="relative w-full h-2">
-                    <div class="absolute inset-y-0 left-0 w-full h-1.5 bg-slate-100 border border-slate-200 rounded-full top-1/2 -translate-y-1/2"></div>
+                <!-- 50px hoher Sektor für die saubere Zick-Zack Anordnung -->
+                <div class="relative w-full h-[50px] mt-2">
+                    <!-- Mittellinie -->
+                    <div class="absolute inset-y-0 left-0 w-full h-1 bg-slate-100 border border-slate-200 rounded-full top-1/2 -translate-y-1/2 z-0"></div>
                     
-                    <div class="absolute top-1/2 -translate-y-1/2 w-[2px] h-3 bg-slate-300 rounded-full" style="left: 25%"></div>
-                    <div class="absolute top-1/2 -translate-y-1/2 w-[2px] h-4 bg-slate-400 rounded-full" style="left: 50%"></div>
-                    <div class="absolute top-1/2 -translate-y-1/2 w-[2px] h-3 bg-slate-300 rounded-full" style="left: 75%"></div>
+                    <!-- Orientierungs-Ticks -->
+                    <div class="absolute top-1/2 -translate-y-1/2 w-[2px] h-3 bg-slate-300 rounded-full z-0" style="left: 25%"></div>
+                    <div class="absolute top-1/2 -translate-y-1/2 w-[2px] h-4 bg-slate-400 rounded-full z-0" style="left: 50%"></div>
+                    <div class="absolute top-1/2 -translate-y-1/2 w-[2px] h-3 bg-slate-300 rounded-full z-0" style="left: 75%"></div>
             `;
 
-            cycleLogs.forEach(log => {
+            cycleLogs.forEach((log, index) => {
                 const secInCycle = log.relativeSec - cycleStartSec;
                 const pct = (secInCycle / 120) * 100;
                 const icon = log.iconData;
 
+                // ZICK-ZACK Logik: Gerade Index-Zahlen oben (top-0), Ungerade unten (bottom-0)
+                const isTop = index % 2 === 0;
+                const yClass = isTop ? 'top-0' : 'bottom-0';
+
                 html += `
-                <div class="absolute top-1/2 -translate-y-1/2 -ml-[14px] w-[28px] h-[28px] rounded-full flex items-center justify-center text-[13px] shadow-sm border border-slate-200 z-10 ${icon.bg} ${icon.color}"
+                <div class="absolute ${yClass} -ml-[13px] w-[26px] h-[26px] rounded-full flex items-center justify-center text-[12px] shadow-sm border border-slate-200 z-10 ${icon.bg} ${icon.color}"
                      style="left: ${pct}%;"
                      title="${log.timeStr} - ${log.text}">
                     ${icon.icon}
