@@ -1,9 +1,9 @@
 /**
- * CPR Assist - Export Modul (V19 - Smart Tab Detection & Eigene Seite)
- * - SMART EXPORT: Prüft live, welcher Tab in der App offen ist (Übergabe vs. Liste).
- * - PAGE BREAK: Das grafische 5-Linien-Notenblatt bekommt im PDF eine eigene Seite!
- * - BULLETPROOF CANVAS: Fallbacks für ältere iPads eingebaut.
- * - Dateinamen inkl. Datum und Uhrzeit.
+ * CPR Assist - Export Modul (V20 - Modal-Sync & PDF-Safe Layouts)
+ * - BUGFIX: Liest jetzt korrekt die Auswahl IM EXPORT-MODAL aus (Übergabe vs. Debriefing).
+ * - BUGFIX: PDF-HTML nutzt nun Tabellen-Strukturen, um Zerschießen (Flexbox-Bugs) zu verhindern.
+ * - DEBRIEFING: Vollständiges Log + 5-Zeilen Notenblatt auf Seite 2.
+ * - ÜBERGABE: Harte Fakten + SAMPLER (Alles auf 1 Seite).
  */
 
 window.CPR = window.CPR || {};
@@ -35,7 +35,7 @@ window.CPR.Export = (function() {
         return { icon: '🔹', type: 'default' };
     }
 
-    // --- BULLETPROOF RECTANGLE (Für ältere iPads / Safari) ---
+    // --- BULLETPROOF RECTANGLE ---
     function drawSafeRoundRect(ctx, x, y, w, h, r) {
         if (ctx.roundRect) {
             ctx.beginPath();
@@ -54,7 +54,7 @@ window.CPR.Export = (function() {
         }
     }
 
-    // --- 2. CANVAS NOTENBLATT ENGINE (Nur für Debriefing) ---
+    // --- 2. CANVAS NOTENBLATT ENGINE ---
     function createTimelineCanvas(data) {
         const events = data.map(d => ({
             ...d,
@@ -198,14 +198,12 @@ window.CPR.Export = (function() {
         const origContent = btnPdf ? btnPdf.innerHTML : '';
         if (btnPdf) btnPdf.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Erstelle PDF...';
 
-        // 🌟 SMART TAB DETECTION 🌟
-        // Der Export prüft jetzt live, welchen Tab du in der App gerade offen hast!
+        // 🌟 BUGFIX 1: Lese das Toggle IM EXPORT-MODAL aus 🌟
         let isSummary = false;
-        const btnSumm = document.getElementById('btn-view-summary');
-        if (btnSumm && (btnSumm.classList.contains('bg-white') || btnSumm.classList.contains('text-slate-800'))) {
-            isSummary = true; // Du stehst auf "Übergabe", also wird das Kurzprotokoll erzeugt!
+        const btnExportShort = document.getElementById('btn-export-short');
+        if (btnExportShort && (btnExportShort.classList.contains('bg-white') || btnExportShort.classList.contains('text-slate-800'))) {
+            isSummary = true; // User hat im Modal auf "ÜBERGABE" geklickt!
         }
-        if (AppState.protocolViewMode === 'summary') isSummary = true; // Fallback für Modal
 
         const data = AppState.protocolData;
         const totalSec = AppState.totalSeconds || 0;
@@ -220,41 +218,52 @@ window.CPR.Export = (function() {
         const timeStr = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }).replace(':', '');
         const filename = `CPR_Protokoll_${dateStr}_${timeStr}.pdf`;
 
+        // 🌟 BUGFIX 2: PDF-Safe HTML (Tabellen statt Flexbox) 🌟
         const container = document.createElement('div');
+        // Reduziere Breite minimal, damit jsPDF/html2pdf keine Skalierungs-Glitches macht
+        container.style.width = '800px'; 
         container.style.padding = '30px';
         container.style.fontFamily = 'Arial, sans-serif';
         container.style.color = '#1e293b';
-        container.style.width = '1000px'; 
         container.style.backgroundColor = '#ffffff';
 
+        // HEADER TABLE
         let html = `
-            <div style="border-bottom: 3px solid #E3000F; padding-bottom: 15px; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: flex-end;">
-                <div>
-                    <h1 style="margin: 0; font-size: 26px; color: #0f172a; text-transform: uppercase; letter-spacing: 1px;">Reanimationsprotokoll</h1>
-                    <p style="margin: 5px 0 0 0; color: #64748b; font-size: 12px; font-weight: bold; letter-spacing: 2px;">Generiert durch CPR Assist &bull; MODUS: ${isSummary ? 'ÜBERGABE (Kurz)' : 'DEBRIEFING (Vollständig)'}</p>
-                </div>
-                <div style="text-align: right; color: #64748b; font-size: 14px;">
-                    <strong>Datum:</strong> ${now.toLocaleDateString()}<br>
-                    <strong>Einsatzbeginn:</strong> ${AppState.startTime || '--:--'}
-                </div>
-            </div>
-
-            <div style="display: flex; gap: 15px; margin-bottom: 30px;">
-                <div style="flex: 1; background: #f8fafc; padding: 15px; border-radius: 12px; border: 1px solid #e2e8f0;">
-                    <span style="font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 1px;">Patient</span><br>
-                    <span style="font-size: 18px; font-weight: bold; color: #0f172a;">${ageStr}</span>
-                </div>
-                <div style="flex: 1; background: #f8fafc; padding: 15px; border-radius: 12px; border: 1px solid #e2e8f0;">
-                    <span style="font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 1px;">Gesamtdauer</span><br>
-                    <span style="font-size: 18px; font-weight: bold; color: #0f172a;">${Utils.formatTime(totalSec)}</span>
-                </div>
-                <div style="flex: 1; background: #f8fafc; padding: 15px; border-radius: 12px; border: 1px solid #e2e8f0;">
-                    <span style="font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 1px;">CCF (Kompression)</span><br>
-                    <span style="font-size: 18px; font-weight: bold; color: ${ccf >= 80 ? '#10b981' : '#E3000F'};">${ccf}%</span>
-                </div>
-            </div>
+            <table style="width: 100%; border-bottom: 3px solid #E3000F; padding-bottom: 10px; margin-bottom: 20px;">
+                <tr>
+                    <td style="vertical-align: bottom;">
+                        <h1 style="margin: 0; font-size: 26px; color: #0f172a; text-transform: uppercase; letter-spacing: 1px;">Reanimationsprotokoll</h1>
+                        <p style="margin: 5px 0 0 0; color: #64748b; font-size: 12px; font-weight: bold; letter-spacing: 1px;">Generiert durch CPR Assist &bull; MODUS: ${isSummary ? 'ÜBERGABE (Kurz)' : 'DEBRIEFING (Vollständig)'}</p>
+                    </td>
+                    <td style="vertical-align: bottom; text-align: right; color: #64748b; font-size: 14px;">
+                        <strong>Datum:</strong> ${now.toLocaleDateString()}<br>
+                        <strong>Einsatzbeginn:</strong> ${AppState.startTime || '--:--'}
+                    </td>
+                </tr>
+            </table>
         `;
 
+        // METRICS TABLE
+        html += `
+            <table style="width: 100%; margin-bottom: 25px; border-collapse: separate; border-spacing: 10px 0;">
+                <tr>
+                    <td style="width: 33.3%; background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center;">
+                        <span style="font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 1px;">Patient</span><br>
+                        <span style="font-size: 18px; font-weight: bold; color: #0f172a;">${ageStr}</span>
+                    </td>
+                    <td style="width: 33.3%; background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center;">
+                        <span style="font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 1px;">Gesamtdauer</span><br>
+                        <span style="font-size: 18px; font-weight: bold; color: #0f172a;">${Utils.formatTime(totalSec)}</span>
+                    </td>
+                    <td style="width: 33.3%; background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center;">
+                        <span style="font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 1px;">CCF (Kompression)</span><br>
+                        <span style="font-size: 18px; font-weight: bold; color: ${ccf >= 80 ? '#10b981' : '#E3000F'};">${ccf}%</span>
+                    </td>
+                </tr>
+            </table>
+        `;
+
+        // ANAMNESE / DIAGNOSTIK
         const aData = AppState.anamneseData || {};
         let sLines = [];
         if (aData.beobachtet) sLines.push(`<b>Beobachtet:</b> ${aData.beobachtet}`);
@@ -274,23 +283,26 @@ window.CPR.Export = (function() {
 
         html += `
             <h3 style="margin: 0 0 10px 0; font-size: 14px; text-transform: uppercase; color: #64748b; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">Anamnese & Diagnostik</h3>
-            <div style="background: #f8fafc; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; font-size: 14px; margin-bottom: 30px; line-height: 1.5;">
+            <div style="background: #f8fafc; padding: 20px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 14px; margin-bottom: 30px; line-height: 1.5;">
                 ${sLines.length > 0 ? `<div style="margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px dashed #cbd5e1;">${sLines.join(' &nbsp;|&nbsp; ')}</div>` : ''}
-                <div style="display: flex; gap: 20px;">
-                    <div style="flex: 1;">
-                        <strong style="color: #0f172a; display: block; margin-bottom: 5px;">SAMPLER:</strong>
-                        ${sampStr.length > 0 ? sampStr.join('<br>') : '<span style="color: #94a3b8;">Keine SAMPLER-Daten erfasst.</span>'}
-                    </div>
-                    <div style="flex: 1;">
-                        <strong style="color: #0f172a; display: block; margin-bottom: 5px;">HITS Ursachen:</strong>
-                        ${hitsLogs.length > 0 ? `<ul style="margin: 0; padding-left: 20px; color: #334155;">${hitsHtml}</ul>` : '<span style="color: #94a3b8;">Keine HITS-Daten erfasst.</span>'}
-                    </div>
-                </div>
+                
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <td style="width: 50%; vertical-align: top; padding-right: 15px;">
+                            <strong style="color: #0f172a; display: block; margin-bottom: 5px;">SAMPLER:</strong>
+                            ${sampStr.length > 0 ? sampStr.join('<br>') : '<span style="color: #94a3b8;">Keine SAMPLER-Daten erfasst.</span>'}
+                        </td>
+                        <td style="width: 50%; vertical-align: top; border-left: 1px dashed #cbd5e1; padding-left: 15px;">
+                            <strong style="color: #0f172a; display: block; margin-bottom: 5px;">HITS Ursachen:</strong>
+                            ${hitsLogs.length > 0 ? `<ul style="margin: 0; padding-left: 20px; color: #334155;">${hitsHtml}</ul>` : '<span style="color: #94a3b8;">Keine HITS-Daten erfasst.</span>'}
+                        </td>
+                    </tr>
+                </table>
             </div>
         `;
 
         if (isSummary) {
-            // ---> MODUS ÜBERGABE (Kein Notenblatt, Keine Chronologie)
+            // ---> MODUS ÜBERGABE: Harte Fakten Table
             let adrTotal = "0 mg";
             let adrCount = AppState.adrCount || 0;
             if (adrCount > 0) {
@@ -305,26 +317,24 @@ window.CPR.Export = (function() {
 
             html += `
                 <h3 style="margin: 0 0 10px 0; font-size: 14px; text-transform: uppercase; color: #64748b; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">Harte Fakten / Maßnahmen (Übergabe)</h3>
-                <div style="background: #ffffff; border: 2px solid #e2e8f0; border-radius: 12px; padding: 20px;">
-                    <table style="width: 100%; font-size: 16px; border-collapse: collapse;">
-                        <tr><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; width: 30%; color: #64748b;">🫁 <strong>Atemweg</strong></td><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-weight: bold;">${AppState.airwayLabel || 'Nicht dokumentiert'}</td></tr>
-                        <tr><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; color: #64748b;">🩸 <strong>Zugang</strong></td><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-weight: bold;">${AppState.zugangLabel || 'Nicht dokumentiert'}</td></tr>
-                        <tr><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; color: #64748b;">⚡ <strong>Defibrillationen</strong></td><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-weight: bold;">${AppState.shockCount || 0}x abgegeben</td></tr>
-                        <tr><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; color: #64748b;">💉 <strong>Adrenalin</strong></td><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-weight: bold;">${adrTotal} <span style="font-size: 12px; color: #94a3b8;">(${adrCount} Gaben)</span></td></tr>
-                        <tr><td style="padding: 10px; color: #64748b;">💊 <strong>Amiodaron</strong></td><td style="padding: 10px; font-weight: bold;">${amioTotal} <span style="font-size: 12px; color: #94a3b8;">(${amioCount} Gaben)</span></td></tr>
-                    </table>
-                </div>
+                <table style="width: 100%; font-size: 14px; border-collapse: collapse; border: 1px solid #e2e8f0;">
+                    <tr><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; width: 40%; color: #64748b; background: #f8fafc;">🫁 <strong>Atemweg</strong></td><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-weight: bold;">${AppState.airwayLabel || 'Nicht dokumentiert'}</td></tr>
+                    <tr><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; color: #64748b; background: #f8fafc;">🩸 <strong>Zugang</strong></td><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-weight: bold;">${AppState.zugangLabel || 'Nicht dokumentiert'}</td></tr>
+                    <tr><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; color: #64748b; background: #f8fafc;">⚡ <strong>Defibrillationen</strong></td><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-weight: bold;">${AppState.shockCount || 0}x abgegeben</td></tr>
+                    <tr><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; color: #64748b; background: #f8fafc;">💉 <strong>Adrenalin</strong></td><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-weight: bold;">${adrTotal} <span style="font-size: 12px; color: #94a3b8;">(${adrCount} Gaben)</span></td></tr>
+                    <tr><td style="padding: 10px; color: #64748b; background: #f8fafc;">💊 <strong>Amiodaron</strong></td><td style="padding: 10px; font-weight: bold;">${amioTotal} <span style="font-size: 12px; color: #94a3b8;">(${amioCount} Gaben)</span></td></tr>
+                </table>
             `;
             
         } else {
-            // ---> MODUS DEBRIEFING (Chronologie + Notenblatt auf extra Seite!)
+            // ---> MODUS DEBRIEFING: Chronologie Tabelle
             html += `
-                <h3 style="margin: 0 0 15px 0; font-size: 14px; text-transform: uppercase; color: #64748b; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">Vollständige Chronologie</h3>
-                <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+                <h3 style="margin: 0 0 10px 0; font-size: 14px; text-transform: uppercase; color: #64748b; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">Vollständige Chronologie</h3>
+                <table style="width: 100%; border-collapse: collapse; font-size: 12px; border: 1px solid #e2e8f0;">
                     <thead>
                         <tr style="background: #f1f5f9; text-align: left;">
-                            <th style="padding: 10px; border-bottom: 2px solid #cbd5e1; width: 120px;">Uhrzeit</th>
-                            <th style="padding: 10px; border-bottom: 2px solid #cbd5e1; width: 100px;">Relativ</th>
+                            <th style="padding: 10px; border-bottom: 2px solid #cbd5e1; width: 100px;">Uhrzeit</th>
+                            <th style="padding: 10px; border-bottom: 2px solid #cbd5e1; width: 80px;">Relativ</th>
                             <th style="padding: 10px; border-bottom: 2px solid #cbd5e1;">Maßnahme / Ereignis</th>
                         </tr>
                     </thead>
@@ -348,14 +358,14 @@ window.CPR.Export = (function() {
                 </table>
             `;
 
-            // 🌟 EIGENE SEITE FÜR DAS NOTENBLATT (page-break-before: always) 🌟
+            // NOTENBLATT CANVAS (Erzwingt neue Seite)
             const canvas = createTimelineCanvas(data);
             const imgData = canvas.toDataURL('image/png');
             html += `
                 <div style="page-break-before: always; padding-top: 20px;">
                     <h3 style="margin: 0 0 10px 0; font-size: 14px; text-transform: uppercase; color: #64748b; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">Grafischer Ablauf (Compliance Grid)</h3>
-                    <div style="width: 100%; border: 1px solid #e2e8f0; border-radius: 12px; background: #ffffff; margin-bottom: 30px;">
-                        <img src="${imgData}" style="width: 100%; height: auto; display: block; border-radius: 12px;">
+                    <div style="width: 100%; border: 1px solid #e2e8f0; border-radius: 8px; background: #ffffff; padding: 10px;">
+                        <img src="${imgData}" style="width: 100%; max-width: 100%; height: auto; display: block;">
                     </div>
                 </div>
             `;
@@ -366,6 +376,7 @@ window.CPR.Export = (function() {
                 Dieses Protokoll wurde maschinell erstellt. Alle Angaben sind vom Teamführer auf fachliche Korrektheit zu prüfen.
             </div>
         `;
+        
         container.innerHTML = html;
 
         // PDF ENGINE
@@ -373,7 +384,7 @@ window.CPR.Export = (function() {
             margin:       10,
             filename:     filename,
             image:        { type: 'jpeg', quality: 0.98 },
-            html2canvas:  { scale: 2, useCORS: true, letterRendering: true },
+            html2canvas:  { scale: 2, useCORS: true, letterRendering: true, windowWidth: 800 },
             jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
         };
 
@@ -395,10 +406,12 @@ window.CPR.Export = (function() {
             alert("Das Protokoll ist leer."); return;
         }
         
+        // 🌟 BUGFIX 1 AUCH HIER: Lese das Toggle IM EXPORT-MODAL aus 🌟
         let isSummary = false;
-        const btnSumm = document.getElementById('btn-view-summary');
-        if (btnSumm && (btnSumm.classList.contains('bg-white') || btnSumm.classList.contains('text-slate-800'))) isSummary = true;
-        if (AppState.protocolViewMode === 'summary') isSummary = true;
+        const btnExportShort = document.getElementById('btn-export-short');
+        if (btnExportShort && (btnExportShort.classList.contains('bg-white') || btnExportShort.classList.contains('text-slate-800'))) {
+            isSummary = true;
+        }
 
         const data = AppState.protocolData;
         
@@ -453,9 +466,11 @@ window.CPR.Export = (function() {
                     const oldHtml = btnTxt.innerHTML;
                     btnTxt.innerHTML = '<i class="fa-solid fa-check text-lg"></i> Kopiert!';
                     btnTxt.classList.replace('bg-blue-50', 'bg-emerald-50');
+                    btnTxt.classList.replace('text-blue-700', 'text-emerald-700');
                     setTimeout(() => {
                         btnTxt.innerHTML = oldHtml;
                         btnTxt.classList.replace('bg-emerald-50', 'bg-blue-50');
+                        btnTxt.classList.replace('text-emerald-700', 'text-blue-700');
                     }, 2000);
                 }
             }).catch(err => { alert("Konnte Text nicht kopieren."); });
