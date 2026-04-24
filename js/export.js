@@ -1,8 +1,8 @@
 /**
- * CPR Assist - Export Modul (V16.9 - Getrennte Medikamente)
+ * CPR Assist - Export Modul (V17 - Smart Übergabe & Debriefing Mode)
  * - Generiert das PDF-Protokoll und den Text-Export.
- * - Zeichnet eine professionelle, horizontale Zeitachse mit "Fähnchen"-Boxen.
- * - Inklusive angepasster Legende für Adrenalin (Spritze) & Amiodaron (Pille).
+ * - Unterscheidet strikt zwischen "Übergabe" (SBAR/Hard Facts) und "Debriefing" (Full Timeline).
+ * - Dateinamen enthalten nun Datum & exakte Uhrzeit.
  */
 
 window.CPR = window.CPR || {};
@@ -19,7 +19,7 @@ window.CPR.Export = (function() {
         
         // GETRENNTE MEDIKAMENTE
         if (t.includes('adrenalin')) return { icon: '💉', type: 'adr' };
-        if (t.includes('amiodaron')) return { icon: '💊', type: 'amio' };
+        if (t.includes('amiodaron') || t.includes('amio')) return { icon: '💊', type: 'amio' };
         
         if (t.includes('atemweg:') || t.includes('beatmungen durchge')) return { icon: '🫁', type: 'airway' };
         if (t.includes('zugang:')) return { icon: '🩸', type: 'access' };
@@ -37,7 +37,7 @@ window.CPR.Export = (function() {
         return { icon: 'ℹ️', type: 'default' };
     }
 
-    // --- 2. CANVAS ZEITLEISTE GENERIEREN ---
+    // --- 2. CANVAS ZEITLEISTE GENERIEREN (Nur für Debriefing) ---
     function createTimelineCanvas(data, totalSeconds) {
         const events = data.map(d => ({
             ...d,
@@ -81,7 +81,7 @@ window.CPR.Export = (function() {
             return canvas;
         }
 
-        // SMART TRACKS
+        // SMART TRACKS (6 Höhen-Level)
         const tracks = {
             '-1': { yOffset: -80, lastEndX: -999 },
             '1':  { yOffset: 80,  lastEndX: -999 },
@@ -176,7 +176,7 @@ window.CPR.Export = (function() {
             ctx.fillText(ev.iconData.icon, x, lineY + 1); 
         });
         
-        // 4. LEGENDE (Breiter gemacht für neues Item)
+        // LEGENDE
         const legX = 30;
         const legY = baseHeight - 70;
         const legItems = [
@@ -187,14 +187,13 @@ window.CPR.Export = (function() {
         
         ctx.fillStyle = 'rgba(255,255,255,0.9)';
         ctx.beginPath();
-        // Container etwas breiter gemacht (880 statt 780)
         ctx.roundRect(legX, legY, 880, 50, 8);
         ctx.fill();
         ctx.strokeStyle = '#e2e8f0';
         ctx.stroke();
         
         ctx.fillStyle = '#64748b';
-        ctx.font = 'bold 12px Arial'; // Etwas größer
+        ctx.font = 'bold 12px Arial';
         ctx.textAlign = 'left';
         
         let lx = legX + 15;
@@ -206,7 +205,7 @@ window.CPR.Export = (function() {
         return canvas;
     }
 
-    // --- 5. HTML ZU PDF GENERIERUNG ---
+    // --- 3. HTML ZU PDF GENERIERUNG ---
     function generatePdfExport() {
         const { AppState, Utils } = window.CPR;
         if (!AppState || !AppState.protocolData || AppState.protocolData.length === 0) {
@@ -218,6 +217,7 @@ window.CPR.Export = (function() {
         const origContent = btnPdf ? btnPdf.innerHTML : '';
         if (btnPdf) btnPdf.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Erstelle PDF...';
 
+        const isSummary = AppState.protocolViewMode === 'summary'; // Prüfung: Übergabe oder Debriefing?
         const data = AppState.protocolData;
         const totalSec = AppState.totalSeconds || 0;
         
@@ -226,9 +226,13 @@ window.CPR.Export = (function() {
         const compSec = AppState.compressingSeconds || 0;
         const ccf = arrSec > 0 ? Math.min(100, Math.round((compSec / arrSec) * 100)) : 0;
 
-        const canvas = createTimelineCanvas(data, totalSec);
-        const imgData = canvas.toDataURL('image/png');
+        // DATEINAME: Mit Datum und Uhrzeit!
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('de-DE').replace(/\./g, '-');
+        const timeStr = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }).replace(':', '');
+        const filename = `CPR_Protokoll_${dateStr}_${timeStr}.pdf`;
 
+        // PDF CONTAINER SETUP
         const container = document.createElement('div');
         container.style.padding = '30px';
         container.style.fontFamily = 'Arial, sans-serif';
@@ -236,14 +240,15 @@ window.CPR.Export = (function() {
         container.style.width = '1000px'; 
         container.style.backgroundColor = '#ffffff';
 
+        // HEADER & METRICS (Für beide Modi gleich)
         let html = `
             <div style="border-bottom: 3px solid #E3000F; padding-bottom: 15px; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: flex-end;">
                 <div>
                     <h1 style="margin: 0; font-size: 28px; color: #0f172a; text-transform: uppercase; letter-spacing: 1px;">Reanimationsprotokoll</h1>
-                    <p style="margin: 5px 0 0 0; color: #64748b; font-size: 12px; font-weight: bold; letter-spacing: 2px;">Generiert durch CPR Assist</p>
+                    <p style="margin: 5px 0 0 0; color: #64748b; font-size: 12px; font-weight: bold; letter-spacing: 2px;">Generiert durch CPR Assist ${isSummary ? '(Übergabe-Modus)' : ''}</p>
                 </div>
                 <div style="text-align: right; color: #64748b; font-size: 14px;">
-                    <strong>Datum:</strong> ${new Date().toLocaleDateString()}<br>
+                    <strong>Datum:</strong> ${now.toLocaleDateString()}<br>
                     <strong>Einsatzbeginn:</strong> ${AppState.startTime || '--:--'}
                 </div>
             </div>
@@ -268,15 +273,59 @@ window.CPR.Export = (function() {
                     </span>
                 </div>
             </div>
+        `;
 
-            <!-- GRAFISCHE ZEITLEISTE -->
-            <h3 style="margin: 0 0 10px 0; font-size: 14px; text-transform: uppercase; color: #64748b; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">Grafischer Ablauf</h3>
-            <div style="width: 100%; overflow: hidden; margin-bottom: 30px; border: 1px solid #e2e8f0; border-radius: 12px; background: #ffffff;">
-                <img src="${imgData}" style="width: 100%; height: auto; display: block;">
-            </div>
+        // MODULE AUFBAUEN (Übergabe vs Debriefing)
+        if (isSummary) {
+            // ---> MODUS: ÜBERGABE (SBAR, SAMPLER, HITS)
+            const aData = AppState.anamneseData || {};
+            let sLines = [];
+            if (aData.beobachtet) sLines.push(`<b>Beobachtet:</b> ${aData.beobachtet}`);
+            if (aData.laienrea) sLines.push(`<b>Laien-REA:</b> ${aData.laienrea}`);
+            if (aData.brustschmerz) sLines.push(`<b>Brustschmerz:</b> ${aData.brustschmerz}`);
+            
+            let sampStr = [];
+            if (aData.sampler) {
+                const sMap = {s:'Symptome', a:'Allergien', m:'Medikamente', p:'Vorerkrankungen', l:'Letzte Mahlzeit', e:'Ereignis', r:'Risikofaktoren'};
+                Object.keys(sMap).forEach(k => {
+                    if (aData.sampler[k]) sampStr.push(`<b>${sMap[k]}:</b> ${aData.sampler[k]}`);
+                });
+            }
 
-            <!-- DETAILLIERTES LOGBUCH -->
-            <h3 style="margin: 0 0 15px 0; font-size: 14px; text-transform: uppercase; color: #64748b; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">Vollständige Dokumentation</h3>
+            let hitsLogs = data.filter(d => d.action.includes('HITS:'));
+            let hitsHtml = hitsLogs.map(h => `<li style="margin-bottom: 4px;">${h.action.replace('HITS: ', '')}</li>`).join('');
+
+            html += `
+                <h3 style="margin: 0 0 10px 0; font-size: 14px; text-transform: uppercase; color: #64748b; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">Anamnese & Diagnostik (SAMPLER / HITS)</h3>
+                <div style="background: #f8fafc; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; font-size: 14px; margin-bottom: 30px; line-height: 1.5;">
+                    ${sLines.length > 0 ? `<div style="margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px dashed #cbd5e1;">${sLines.join(' &nbsp;|&nbsp; ')}</div>` : ''}
+                    <div style="display: flex; gap: 20px;">
+                        <div style="flex: 1;">
+                            <strong style="color: #0f172a; display: block; margin-bottom: 5px;">SAMPLER:</strong>
+                            ${sampStr.length > 0 ? sampStr.join('<br>') : '<span style="color: #94a3b8;">Keine SAMPLER-Daten erfasst.</span>'}
+                        </div>
+                        <div style="flex: 1;">
+                            <strong style="color: #0f172a; display: block; margin-bottom: 5px;">HITS Ursachen:</strong>
+                            ${hitsLogs.length > 0 ? `<ul style="margin: 0; padding-left: 20px; color: #334155;">${hitsHtml}</ul>` : '<span style="color: #94a3b8;">Keine HITS-Daten erfasst.</span>'}
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else {
+            // ---> MODUS: DEBRIEFING (Canvas Zeitachse)
+            const canvas = createTimelineCanvas(data, totalSec);
+            const imgData = canvas.toDataURL('image/png');
+            html += `
+                <h3 style="margin: 0 0 10px 0; font-size: 14px; text-transform: uppercase; color: #64748b; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">Grafischer Ablauf</h3>
+                <div style="width: 100%; overflow: hidden; margin-bottom: 30px; border: 1px solid #e2e8f0; border-radius: 12px; background: #ffffff;">
+                    <img src="${imgData}" style="width: 100%; height: auto; display: block;">
+                </div>
+            `;
+        }
+
+        // TABELLE AUFBAUEN (Je nach Modus gefiltert)
+        html += `
+            <h3 style="margin: 0 0 15px 0; font-size: 14px; text-transform: uppercase; color: #64748b; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">${isSummary ? 'Relevante Interventionen (Gefiltert)' : 'Vollständige Dokumentation'}</h3>
             <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
                 <thead>
                     <tr style="background: #f1f5f9; text-align: left;">
@@ -288,7 +337,20 @@ window.CPR.Export = (function() {
                 <tbody>
         `;
 
-        data.forEach((item, index) => {
+        // FILTERN DER TABELLE FÜR DEN ÜBERGABE MODUS
+        let tableData = data;
+        if (isSummary) {
+            tableData = data.filter(d => {
+                const a = d.action.toLowerCase();
+                // Harte Fakten behalten, Logbuch-Spam (wie Pausen) rauswerfen. HITS und SAMPLER sind schon in der Box drüber, 
+                // aber zur Sicherheit in der Chronologie behalten wir nur Interventionen:
+                return a.includes('schock') || a.includes('adrenalin') || a.includes('amio') || 
+                       a.includes('atemweg') || a.includes('zugang') || a.includes('rosc') || 
+                       a.includes('start') || a.includes('abbruch') || a.includes('beendet');
+            });
+        }
+
+        tableData.forEach((item, index) => {
             const bg = index % 2 === 0 ? '#ffffff' : '#f8fafc';
             const relTime = Utils.formatRelative(item.secondsFromStart);
             html += `
@@ -310,9 +372,10 @@ window.CPR.Export = (function() {
         `;
         container.innerHTML = html;
 
+        // PDF ENGINE STARTEN
         const opt = {
             margin:       10,
-            filename:     'CPR_Protokoll_' + new Date().toLocaleDateString().replace(/\./g, '-') + '.pdf',
+            filename:     filename,
             image:        { type: 'jpeg', quality: 0.98 },
             html2canvas:  { scale: 2, useCORS: true, letterRendering: true },
             jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
@@ -330,6 +393,7 @@ window.CPR.Export = (function() {
         });
     }
 
+    // --- 4. CLIPBOARD / TEXT EXPORT ---
     function generateTxtExport() {
         const { AppState, Utils } = window.CPR;
         if (!AppState || !AppState.protocolData || AppState.protocolData.length === 0) {
@@ -337,20 +401,58 @@ window.CPR.Export = (function() {
             return;
         }
         
+        const isSummary = AppState.protocolViewMode === 'summary';
         const data = AppState.protocolData;
-        let text = "🚨 REANIMATIONSPROTOKOLL\n";
+        
+        let text = "🚨 REANIMATIONSPROTOKOLL " + (isSummary ? "(ÜBERGABE)" : "") + "\n";
         text += "Datum: " + new Date().toLocaleDateString() + "\n";
         text += "Start: " + (AppState.startTime || '--:--') + "\n";
         text += "Dauer: " + Utils.formatTime(AppState.totalSeconds || 0) + "\n\n";
+
+        // ANAMNESE BLOCK (Nur bei Übergabe)
+        if (isSummary && AppState.anamneseData) {
+            text += "--- ANAMNESE / DIAGNOSTIK ---\n";
+            const aData = AppState.anamneseData;
+            if (aData.beobachtet) text += "Beobachtet: " + aData.beobachtet + " | ";
+            if (aData.laienrea) text += "Laien-REA: " + aData.laienrea + " | ";
+            if (aData.brustschmerz) text += "Brustschmerz: " + aData.brustschmerz + "\n";
+            
+            if (aData.sampler) {
+                const sMap = {s:'Symptome', a:'Allergien', m:'Medikamente', p:'Vorerkrankungen', l:'Letzte Mahlzeit', e:'Ereignis', r:'Risikofaktoren'};
+                Object.keys(sMap).forEach(k => {
+                    if (aData.sampler[k]) text += sMap[k] + ": " + aData.sampler[k] + "\n";
+                });
+            }
+            
+            const hitsLogs = data.filter(d => d.action.includes('HITS:'));
+            if (hitsLogs.length > 0) {
+                text += "\nHITS Ursachen:\n";
+                hitsLogs.forEach(h => text += "- " + h.action.replace('HITS: ', '') + "\n");
+            }
+            text += "\n";
+        }
+
         text += "--- VERLAUF ---\n";
         
         data.forEach(item => {
-            if (item.action.includes('Kompression PAUSE') || item.action.includes('Kompression FORTGESETZT')) return;
+            const a = item.action.toLowerCase();
+            // Grundsätzlichen Spam immer rauswerfen
+            if (a.includes('kompression pause') || a.includes('kompression fortgesetzt') || a.includes('beatmungen übersprungen') || a.includes('modus manuell')) return;
+            
+            // Wenn Übergabe, dann nur harte Fakten!
+            if (isSummary) {
+                const isHardFact = a.includes('schock') || a.includes('adrenalin') || a.includes('amio') || 
+                                   a.includes('atemweg') || a.includes('zugang') || a.includes('rosc') || 
+                                   a.includes('start') || a.includes('abbruch') || a.includes('beendet');
+                if (!isHardFact) return;
+            }
+            
             text += `[+${Utils.formatTime(item.secondsFromStart)}] ${item.action}\n`;
         });
         
         text += "\nGeneriert mit CPR Assist";
 
+        // In die Zwischenablage kopieren
         if (navigator.clipboard && window.isSecureContext) {
             navigator.clipboard.writeText(text).then(() => {
                 if(Utils.vibrate) Utils.vibrate(30);
