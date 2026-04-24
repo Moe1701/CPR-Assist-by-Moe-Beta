@@ -1,8 +1,9 @@
 /**
- * CPR Assist - Log Timeline Modul (V27 - Zick-Zack & Legende)
- * - MEDIZINISCHES UX-UPDATE: Zick-Zack Anordnung der Icons verhindert Überlappungen.
- * - Zentrale, saubere Zeitachse in jedem 2-Minuten-Block.
- * - Statische Legende für intuitive Lesbarkeit im Stress.
+ * CPR Assist - Log Timeline Modul (V28 - 1-Minuten Start & Pures Emoji Grid)
+ * - MEDIZINISCHES UX-UPDATE: Zyklen 1-5 sind 1-Minuten Intervalle. Ab Min 5 sind es 120s Intervalle.
+ * - KOMPAKT-LEGENDE: Oben deutlich schmaler, damit mehr Grid sichtbar ist.
+ * - PURES EMOJI: Keine dicken runden Hintergründe mehr, verhindert Überlappen.
+ * - MULTI-LEVEL ZICK-ZACK: 6 verschiedene Höhenstufen für extrem hohe Ereignisdichte.
  */
 
 window.CPR = window.CPR || {};
@@ -133,7 +134,7 @@ window.CPR.LogTimeline = (function() {
         `;
     }
 
-    // --- 5. DIE ZEITLINIE (120-Sekunden / Zick-Zack Grid) ---
+    // --- 5. DIE NEUE ZEITLINIE (1-Minuten und 2-Minuten Hybrid) ---
     function renderTimeline(container) {
         const logs = parseLogs();
         if (logs.length === 0) {
@@ -142,59 +143,80 @@ window.CPR.LogTimeline = (function() {
         }
 
         const maxSec = logs[logs.length - 1].relativeSec;
-        const totalCycles = Math.max(5, Math.ceil((maxSec + 1) / 120));
+        
+        // Berechnung der benötigten Grid-Zeilen
+        // Die ersten 5 Zeilen sind 1-Minuten-Blöcke (0-300s).
+        let totalCycles = 5; 
+        if (maxSec >= 300) {
+            // Ab Sekunde 300 wechseln wir in den 2-Minuten Takt
+            totalCycles = 5 + Math.ceil((maxSec - 299) / 120);
+        }
 
-        // 5.1 Die Legende ganz oben
+        // 5.1 Kompakte Legende (Ohne weiße Boxen, pures Emoji)
         let html = `
-        <div class="p-4 space-y-3 pb-24">
-            <div class="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm shrink-0">
-                <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2 text-center">Legende (Zeitachse)</span>
-                <div class="flex flex-wrap justify-center gap-x-3 gap-y-2">
-                    <div class="flex items-center gap-1.5"><div class="w-5 h-5 rounded-full bg-emerald-50 text-emerald-600 border border-slate-100 flex items-center justify-center text-[10px] shadow-sm">▶️</div><span class="text-[9px] font-bold text-slate-600 uppercase">Start</span></div>
-                    <div class="flex items-center gap-1.5"><div class="w-5 h-5 rounded-full bg-amber-50 text-amber-500 border border-slate-100 flex items-center justify-center text-[10px] shadow-sm">⚡</div><span class="text-[9px] font-bold text-slate-600 uppercase">Schock</span></div>
-                    <div class="flex items-center gap-1.5"><div class="w-5 h-5 rounded-full bg-red-50 text-[#E3000F] border border-slate-100 flex items-center justify-center text-[10px] shadow-sm">💉</div><span class="text-[9px] font-bold text-slate-600 uppercase">Adrenalin</span></div>
-                    <div class="flex items-center gap-1.5"><div class="w-5 h-5 rounded-full bg-purple-50 text-purple-600 border border-slate-100 flex items-center justify-center text-[10px] shadow-sm">💊</div><span class="text-[9px] font-bold text-slate-600 uppercase">Amio</span></div>
-                    <div class="flex items-center gap-1.5"><div class="w-5 h-5 rounded-full bg-cyan-50 text-cyan-600 border border-slate-100 flex items-center justify-center text-[10px] shadow-sm">🫁</div><span class="text-[9px] font-bold text-slate-600 uppercase">Atemweg</span></div>
-                    <div class="flex items-center gap-1.5"><div class="w-5 h-5 rounded-full bg-indigo-50 text-indigo-600 border border-slate-100 flex items-center justify-center text-[10px] shadow-sm">🩸</div><span class="text-[9px] font-bold text-slate-600 uppercase">Zugang</span></div>
+        <div class="p-3 space-y-1.5 pb-24">
+            <div class="bg-white p-2.5 rounded-xl border border-slate-200 shadow-sm shrink-0">
+                <div class="flex flex-wrap justify-center gap-x-3 gap-y-1.5">
+                    <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm">▶️</span><span class="text-[8px] font-bold text-slate-600 uppercase">Start</span></div>
+                    <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm">⚡</span><span class="text-[8px] font-bold text-slate-600 uppercase">Schock</span></div>
+                    <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm">💉</span><span class="text-[8px] font-bold text-slate-600 uppercase">Adrenalin</span></div>
+                    <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm">💊</span><span class="text-[8px] font-bold text-slate-600 uppercase">Amio</span></div>
+                    <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm">🫁</span><span class="text-[8px] font-bold text-slate-600 uppercase">Atemweg</span></div>
+                    <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm">🩸</span><span class="text-[8px] font-bold text-slate-600 uppercase">Zugang</span></div>
                 </div>
             </div>
         `;
 
+        // 5.2 Das Grid aufbauen
         for (let i = 0; i < totalCycles; i++) {
-            const startMin = i * 2;
-            const endMin = (i + 1) * 2;
-            const cycleStartSec = i * 120;
-            const cycleEndSec = (i + 1) * 120;
+            let startSec, endSec, labelMin, durationSec;
 
-            const cycleLogs = logs.filter(l => l.relativeSec >= cycleStartSec && l.relativeSec < cycleEndSec);
+            if (i < 5) {
+                // Zyklus 1-5: 1-Minuten Blöcke
+                startSec = i * 60;
+                endSec = (i + 1) * 60;
+                labelMin = `${i}-${i+1} Min`;
+                durationSec = 60;
+            } else {
+                // Zyklus 6+: 2-Minuten Blöcke
+                const cyclesAfter5 = i - 5;
+                startSec = 300 + (cyclesAfter5 * 120);
+                endSec = startSec + 120;
+                labelMin = `${startSec/60}-${endSec/60} Min`;
+                durationSec = 120;
+            }
+
+            const cycleLogs = logs.filter(l => l.relativeSec >= startSec && l.relativeSec < endSec);
 
             html += `
-            <div class="relative bg-white border border-slate-200 rounded-xl p-3 shadow-sm h-[95px] w-full shrink-0 flex flex-col justify-end pb-3 mb-2">
-                <span class="absolute top-2 left-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Zyklus ${i+1} <span class="opacity-50 ml-1">(${startMin}-${endMin} Min)</span></span>
+            <div class="relative bg-white border border-slate-200 rounded-xl p-2 px-3 shadow-sm h-[70px] w-full shrink-0 flex flex-col justify-end pb-2">
+                <span class="absolute top-1.5 left-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Zyklus ${i+1} <span class="opacity-50 ml-1">(${labelMin})</span></span>
                 
-                <!-- 50px hoher Sektor für die saubere Zick-Zack Anordnung -->
-                <div class="relative w-full h-[50px] mt-2">
+                <!-- 36px hoher Sektor für die Icons -->
+                <div class="relative w-full h-[36px] mt-2">
                     <!-- Mittellinie -->
                     <div class="absolute inset-y-0 left-0 w-full h-1 bg-slate-100 border border-slate-200 rounded-full top-1/2 -translate-y-1/2 z-0"></div>
                     
-                    <!-- Orientierungs-Ticks -->
+                    <!-- Orientierungs-Ticks bei 25%, 50%, 75% -->
                     <div class="absolute top-1/2 -translate-y-1/2 w-[2px] h-3 bg-slate-300 rounded-full z-0" style="left: 25%"></div>
                     <div class="absolute top-1/2 -translate-y-1/2 w-[2px] h-4 bg-slate-400 rounded-full z-0" style="left: 50%"></div>
                     <div class="absolute top-1/2 -translate-y-1/2 w-[2px] h-3 bg-slate-300 rounded-full z-0" style="left: 75%"></div>
             `;
 
+            // MULTI-LEVEL ZICK-ZACK: 6 spezifische Höhenstufen für extreme Dichte ohne Überlappen.
+            // Die Mittellinie liegt bei 18px (top-1/2 eines 36px Containers).
+            const yLevels = ['-6px', '22px', '2px', '14px', '-10px', '26px'];
+
             cycleLogs.forEach((log, index) => {
-                const secInCycle = log.relativeSec - cycleStartSec;
-                const pct = (secInCycle / 120) * 100;
+                const secInCycle = log.relativeSec - startSec;
+                const pct = (secInCycle / durationSec) * 100;
                 const icon = log.iconData;
 
-                // ZICK-ZACK Logik: Gerade Index-Zahlen oben (top-0), Ungerade unten (bottom-0)
-                const isTop = index % 2 === 0;
-                const yClass = isTop ? 'top-0' : 'bottom-0';
+                const yPos = yLevels[index % yLevels.length];
 
                 html += `
-                <div class="absolute ${yClass} -ml-[13px] w-[26px] h-[26px] rounded-full flex items-center justify-center text-[12px] shadow-sm border border-slate-200 z-10 ${icon.bg} ${icon.color}"
-                     style="left: ${pct}%;"
+                <div class="absolute -ml-[8px] w-[16px] h-[16px] flex items-center justify-center text-[16px] drop-shadow-md z-10"
+                     style="left: ${pct}%; top: ${yPos};"
                      title="${log.timeStr} - ${log.text}">
                     ${icon.icon}
                 </div>
