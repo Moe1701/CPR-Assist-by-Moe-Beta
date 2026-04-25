@@ -1,15 +1,15 @@
 /**
- * CPR Assist - Log Timeline Modul (V37 - The Perfect Grid Fix)
- * - BUGFIX: Tailwind Compiler Issue behoben. Icons nutzen nun inline styles (left: X%) für perfekte Verteilung.
- * - BUGFIX: Timeline skaliert nun an der echten Gesamteinsatzzeit, nicht am letzten Event!
- * - FEATURE: Fixe 5x 1-Minuten Kästen zum Start, danach automatisch 2-Minuten Kästen.
- * - SAFEGURAD: Scroll-Positionen bleiben beim Live-Rendern (DOM-Reset) strikt erhalten.
+ * CPR Assist - Log Timeline Modul (V38 - Live Marker & 2-Minuten Scale)
+ * - MEDIZINISCHES UX-UPDATE: Jeder Kasten ist nun fest 120 Sekunden (2-Minuten CPR Zyklus).
+ * - LIVE MARKER: Eine rote Linie wandert in Echtzeit über das aktuelle Zeitfenster.
+ * - STICKY LEGENDE: Legende bleibt beim Scrollen immer oben sichtbar.
  */
 
 window.CPR = window.CPR || {};
 
 window.CPR.LogTimeline = (function() {
     let currentView = 'list'; 
+    let liveMarkerInterval = null;
     
     // --- 1. ICON LOGIK (Synchron mit export.js) ---
     function getIconData(txt) {
@@ -22,12 +22,11 @@ window.CPR.LogTimeline = (function() {
         if (t.includes('amiodaron') || t.includes('amio')) return { icon: '💊', type: 'amio', color: 'text-purple-600', bg: 'bg-purple-50' };
         if (t.includes('atemweg:') || t.includes('beatmungen durchge')) return { icon: '🫁', type: 'airway', color: 'text-cyan-600', bg: 'bg-cyan-50' };
         if (t.includes('zugang:')) return { icon: '🩸', type: 'access', color: 'text-indigo-600', bg: 'bg-indigo-50' };
-        if (t.includes('start rea')) return { icon: '▶️', type: 'start', color: 'text-slate-700', bg: 'bg-slate-200' };
+        if (t.includes('start rea')) return { icon: '▶️', type: 'start', color: 'text-emerald-600', bg: 'bg-emerald-50' };
         if (t.includes('rosc!')) return { icon: '❤️', type: 'rosc', color: 'text-emerald-600', bg: 'bg-emerald-50' };
         if (t.includes('re-arrest')) return { icon: '💔', type: 'arrest', color: 'text-red-600', bg: 'bg-red-100' };
         if (t.includes('abbruch') || t.includes('beendet')) return { icon: '🛑', type: 'end', color: 'text-slate-800', bg: 'bg-slate-200' };
         
-        // System-Rauschen filtern
         if (t.includes('kompression pause') || t.includes('kompression fortgesetzt') || 
             t.includes('beatmungen übersprungen') || t.includes('modus manuell') ||
             t.includes('atemweg entfernt')) {
@@ -37,7 +36,7 @@ window.CPR.LogTimeline = (function() {
         return { icon: '🔹', type: 'default', color: 'text-slate-400', bg: 'bg-slate-100' };
     }
 
-    // --- 2. DATA HARVESTER (Sammelt und berechnet SBAR Fakten) ---
+    // --- 2. DATA HARVESTER ---
     function extractSbarFacts() {
         const state = window.CPR.AppState || {};
         const data = state.protocolData || [];
@@ -83,8 +82,6 @@ window.CPR.LogTimeline = (function() {
 
         return `
             <div class="flex-1 overflow-y-auto p-4 flex flex-col gap-4 pb-24 custom-scrollbar bg-slate-100">
-                
-                <!-- [S] SITUATION -->
                 <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 relative overflow-hidden">
                     <div class="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
                     <h3 class="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-3 flex items-center gap-2"><i class="fa-solid fa-user-injured text-sm"></i> S - Situation</h3>
@@ -95,7 +92,6 @@ window.CPR.LogTimeline = (function() {
                     </div>
                 </div>
 
-                <!-- [B] BACKGROUND -->
                 <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 relative overflow-hidden">
                     <div class="absolute top-0 left-0 w-1 h-full bg-indigo-500"></div>
                     <h3 class="text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-3 flex items-center gap-2"><i class="fa-solid fa-clipboard-list text-sm"></i> B - Background</h3>
@@ -112,7 +108,6 @@ window.CPR.LogTimeline = (function() {
                     </div>
                 </div>
 
-                <!-- [A] ASSESSMENT -->
                 <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 relative overflow-hidden">
                     <div class="absolute top-0 left-0 w-1 h-full bg-amber-500"></div>
                     <h3 class="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-3 flex items-center gap-2"><i class="fa-solid fa-stethoscope text-sm"></i> A - Assessment</h3>
@@ -130,7 +125,6 @@ window.CPR.LogTimeline = (function() {
                     </div>
                 </div>
 
-                <!-- [R] RESPONSE -->
                 <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 relative overflow-hidden">
                     <div class="absolute top-0 left-0 w-1 h-full bg-[#E3000F]"></div>
                     <h3 class="text-[10px] font-black text-[#E3000F] uppercase tracking-widest mb-3 flex items-center gap-2"><i class="fa-solid fa-kit-medical text-sm"></i> R - Response</h3>
@@ -167,7 +161,6 @@ window.CPR.LogTimeline = (function() {
 
         const { ccf, adrTotal } = extractSbarFacts();
 
-        // Der angepinnte SBAR-Mini-Header für maximalen Überblick
         let html = `
             <div class="bg-white px-4 py-2 border-b border-slate-200 shadow-sm shrink-0 z-10 flex justify-between items-center sticky top-0">
                 <div class="flex items-center gap-4">
@@ -181,7 +174,6 @@ window.CPR.LogTimeline = (function() {
                 <div class="flex flex-col gap-2">
         `;
 
-        // Die Liste (neueste oben)
         data.slice().reverse().forEach(item => {
             const iconData = getIconData(item.action) || { icon: '🔹', bg: 'bg-slate-100', color: 'text-slate-500' };
             const relTime = window.CPR.Utils.formatRelative(item.secondsFromStart);
@@ -206,45 +198,51 @@ window.CPR.LogTimeline = (function() {
         return html;
     }
 
-    // --- 5. DOM RENDERING: TIME-WARP GRID (Zeitlinie-Tab) ---
+    // --- 5. DOM RENDERING: THE PERFECT GRID (Zeitlinie-Tab) ---
     function renderTimeline(data) {
-        if (data.length === 0) return '<div class="text-center text-slate-400 font-bold p-10 text-xs uppercase tracking-widest mt-10">Noch keine Einträge</div>';
+        // Die Legende bleibt IMMER sticky (festgepinnt) oben am Rand!
+        let html = `
+        <div class="flex flex-col h-full overflow-hidden relative">
+            <div class="sticky top-0 z-50 bg-slate-50 border-b border-slate-200 px-3 py-2 shrink-0 shadow-sm">
+                <div class="bg-white p-2 rounded-xl border border-slate-100">
+                    <div class="flex flex-wrap justify-center gap-x-3 gap-y-1.5">
+                        <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm">▶️</span><span class="text-[8px] font-bold text-slate-600 uppercase tracking-widest">Start</span></div>
+                        <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm">⚡</span><span class="text-[8px] font-bold text-slate-600 uppercase tracking-widest">Schock</span></div>
+                        <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm">💉</span><span class="text-[8px] font-bold text-slate-600 uppercase tracking-widest">Adrenalin</span></div>
+                        <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm">💊</span><span class="text-[8px] font-bold text-slate-600 uppercase tracking-widest">Amio</span></div>
+                        <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm">🫁</span><span class="text-[8px] font-bold text-slate-600 uppercase tracking-widest">Atemweg</span></div>
+                        <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm">🩸</span><span class="text-[8px] font-bold text-slate-600 uppercase tracking-widest">Zugang</span></div>
+                    </div>
+                </div>
+            </div>
+            <div class="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar bg-slate-50 relative pb-24 pt-4 px-3">
+        `;
+
+        if (data.length === 0) {
+            html += '<div class="text-center text-slate-400 font-bold p-10 text-xs uppercase tracking-widest mt-4">Noch keine Einträge</div></div></div>';
+            return html;
+        }
 
         const filtered = data.map(d => ({ ...d, iconData: getIconData(d.action) })).filter(d => d.iconData !== null);
         
-        // 🌟 BUGFIX: Die Timeline muss sich an der echten Gesamtlaufzeit orientieren, nicht am letzten Icon!
         const state = window.CPR.AppState || {};
         let currentAppSec = state.totalSeconds || 0;
         
-        // Fallback: Falls jemand eine Zeile aus der Zukunft loggt (z.B. manuell manipuliert)
         if (filtered.length > 0 && filtered[filtered.length - 1].secondsFromStart > currentAppSec) {
             currentAppSec = filtered[filtered.length - 1].secondsFromStart;
         }
         
-        // 🌟 LOGIK: Garantiert IMMER mindestens 5 Boxen!
-        let totalCycles = 5; 
-        if (currentAppSec > 300) {
-            // Nach 300 Sekunden (5 Min) rechnen wir in 120s Blöcken (2 Min) weiter
-            totalCycles = 5 + Math.ceil((currentAppSec - 300) / 120);
-        }
-
-        let html = `<div class="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar bg-slate-50 relative pb-24 pt-4 px-3">`;
+        // 🌟 LOGIK: Garantiert IMMER mindestens 4 Boxen (8 Minuten) im reinen 120s-Format!
+        const cycleDuration = 120;
+        let totalCycles = Math.max(4, Math.ceil(currentAppSec / cycleDuration));
 
         let currentStartSec = 0;
-        
-        // Zick-Zack Offsets (6 verschiedene Höhenstufen für extrem hohe Ereignisdichte ohne Überlappen)
         const yOffsets = [12, -12, 28, -28, 44, -44];
 
         for (let i = 0; i < totalCycles; i++) {
-            
-            // TIME-WARP LOGIK: Erste 5 Boxen = 60s. Danach = 120s.
-            let cycleDuration = 60;
-            if (i >= 5) {
-                cycleDuration = 120;
-            }
-
             const cycleEndSec = currentStartSec + cycleDuration;
             const cycleEvents = filtered.filter(e => e.secondsFromStart >= currentStartSec && e.secondsFromStart < cycleEndSec);
+            const isActiveBlock = (currentAppSec >= currentStartSec && currentAppSec < cycleEndSec);
 
             html += `
                 <div class="relative w-full h-[140px] mb-8 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden shrink-0">
@@ -255,11 +253,23 @@ window.CPR.LogTimeline = (function() {
                     <div class="absolute top-1/2 left-1 -translate-y-1/2 text-[9px] font-black text-slate-400 bg-white px-1 z-10">${window.CPR.Utils.formatTime(currentStartSec)}</div>
                     <div class="absolute top-1/2 right-1 -translate-y-1/2 text-[9px] font-black text-slate-400 bg-white px-1 z-10">${window.CPR.Utils.formatTime(cycleEndSec)}</div>
                     
-                    <!-- 🌟 ABSOLUTE SICHERHEITS-ZONE FÜR DIE ICONS 🌟 -->
-                    <!-- Diese Box entspricht exakt dem Bereich ZWISCHEN den Text-Labels (left-8 bis right-8). -->
-                    <!-- Dadurch ist "left: 0%" exakt bei der Start-Linie und "left: 100%" exakt an der End-Linie. -->
+                    <!-- 🌟 ABSOLUTE SICHERHEITS-ZONE (Marker und Icons bleiben zentriert hier drin) 🌟 -->
                     <div class="absolute inset-y-0 left-8 right-8 pointer-events-none">
             `;
+
+            // LIVE MARKER
+            if (isActiveBlock) {
+                const markerPct = ((currentAppSec - currentStartSec) / cycleDuration) * 100;
+                html += `
+                        <!-- Die wandernde rote Laser-Linie -->
+                        <div class="live-time-marker absolute top-0 bottom-0 w-[2px] bg-red-500 z-[5] shadow-[0_0_8px_rgba(239,68,68,0.8)]" 
+                             data-start="${currentStartSec}" data-end="${cycleEndSec}" 
+                             style="left: ${markerPct}%;">
+                             <div class="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-red-500 shadow-sm"></div>
+                             <div class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-red-500 shadow-sm"></div>
+                        </div>
+                `;
+            }
 
             cycleEvents.forEach((ev, idx) => {
                 const secInCycle = ev.secondsFromStart - currentStartSec;
@@ -273,7 +283,6 @@ window.CPR.LogTimeline = (function() {
 
                 html += `
                         <!-- Der Anker-Strich -->
-                        <!-- 🌟 NATIVES CSS FÜR DIE POSITION (Kein Tailwind calc-Bug mehr!) 🌟 -->
                         <div class="absolute w-px bg-slate-300 -translate-x-1/2 ${linePosClass}" style="left: ${pct}%; height: ${lineH}px;"></div>
                         
                         <!-- Das Icon-Element -->
@@ -292,8 +301,46 @@ window.CPR.LogTimeline = (function() {
             currentStartSec = cycleEndSec;
         }
 
-        html += `</div>`;
+        html += `</div></div>`;
         return html;
+    }
+
+    // --- LIVE MARKER UPDATER (Ohne DOM Reset) ---
+    function updateLiveMarker() {
+        if (currentView !== 'timeline') return;
+        const state = window.CPR.AppState;
+        if (!state || !state.isRunning) return;
+
+        const currentAppSec = state.totalSeconds || 0;
+        const markers = document.querySelectorAll('.live-time-marker');
+        
+        // Finde den Marker und verschiebe ihn in Echtzeit (ohne dass die Liste flackert!)
+        markers.forEach(marker => {
+            const blockStart = parseInt(marker.dataset.start);
+            const blockEnd = parseInt(marker.dataset.end);
+            
+            if (currentAppSec >= blockStart && currentAppSec <= blockEnd) {
+                const pct = ((currentAppSec - blockStart) / 120) * 100;
+                marker.style.left = `${pct}%`;
+                // Wenn wir eine Block-Grenze überschreiten (z.B. von Block 1 zu Block 2), zeichnen wir das DOM kurz neu,
+                // damit der Marker in der neuen Box spawnt und die alten Icons bleiben.
+                if (currentAppSec === blockStart && currentAppSec > 0) {
+                    renderCurrentView();
+                }
+            }
+        });
+    }
+
+    function startLiveMarkerInterval() {
+        if (liveMarkerInterval) clearInterval(liveMarkerInterval);
+        liveMarkerInterval = setInterval(updateLiveMarker, 1000);
+    }
+
+    function stopLiveMarkerInterval() {
+        if (liveMarkerInterval) {
+            clearInterval(liveMarkerInterval);
+            liveMarkerInterval = null;
+        }
     }
 
     // --- 6. DOM UPDATER (Mit SCROLL-SAFEGUARD) ---
@@ -349,6 +396,13 @@ window.CPR.LogTimeline = (function() {
         }
 
         renderCurrentView();
+
+        // Start/Stop den Live-Marker nur, wenn wir auf dem Timeline-Tab sind!
+        if (tab === 'timeline') {
+            startLiveMarkerInterval();
+        } else {
+            stopLiveMarkerInterval();
+        }
     }
 
     function init() {
