@@ -1,21 +1,28 @@
 /**
- * CPR Assist - Export Modul (V36 - The God Mode Fix)
- * - FIX 1 (Dead Buttons): Nutzt Event Delegation (document.addEventListener), 
- * um 100% verlässliche Klicks zu garantieren, egal wie asynchron die PWA lädt.
- * - FIX 2 (Android Crash): Alle "text-transform" und "letter-spacing" CSS-Befehle
- * aus dem PDF-HTML entfernt. Diese lösen den berüchtigten "setEnd on Range" Bug aus!
+ * CPR Assist - Export Modul (V40 - Medical Grade PDF mit Joule Parser & Lineal)
+ * - JOULE SCANNER: Das Canvas im PDF rendert nun "150J" Texte für Schocks!
+ * - RHYTHMUS FILTER: "Nicht schockbar" wird im PDF als 🚫⚡ gedruckt.
+ * - 15s LINEAL: Präzise Markierungen auf dem Canvas-Track.
  */
 
 window.CPR = window.CPR || {};
 
 window.CPR.Export = (function() {
 
-    // --- 1. ICON LOGIK (Für das Canvas Notenblatt) ---
+    // --- 1. ICON LOGIK (Sync mit log-timeline.js) ---
     function getIconData(txt) {
         if (!txt) return null;
         const t = txt.toLowerCase();
+        
+        if (t.includes('schock') && !t.includes('schockbar')) {
+            const match = t.match(/(\d+)\s*[jJ]/);
+            if (match) return { icon: match[1] + 'J', isText: true, type: 'shock' };
+            return { icon: '⚡', type: 'shock' };
+        }
+        if (t.includes('nicht schockbar')) return { icon: '🚫⚡', type: 'analysis-no' };
+        if (t.includes('schockbar')) return { icon: '⚡', type: 'analysis-yes' };
+
         if (t.includes('hits') || t.includes('sampler') || t.includes('anamnese')) return { icon: '📋', type: 'info' };
-        if (t.includes('schock')) return { icon: '⚡', type: 'shock' };
         if (t.includes('adrenalin')) return { icon: '💉', type: 'adr' };
         if (t.includes('amiodaron') || t.includes('amio')) return { icon: '💊', type: 'amio' };
         if (t.includes('atemweg:') || t.includes('beatmungen durchge')) return { icon: '🫁', type: 'airway' };
@@ -24,24 +31,21 @@ window.CPR.Export = (function() {
         if (t.includes('rosc!')) return { icon: '❤️', type: 'rosc' };
         if (t.includes('re-arrest')) return { icon: '💔', type: 'arrest' };
         if (t.includes('abbruch') || t.includes('beendet')) return { icon: '🛑', type: 'end' };
+        
         if (t.includes('kompression pause') || t.includes('kompression fortgesetzt') || 
             t.includes('beatmungen übersprungen') || t.includes('modus manuell') || t.includes('atemweg entfernt')) return null;
         return { icon: '🔹', type: 'default' };
     }
 
     function drawSafeRoundRect(ctx, x, y, w, h, r) {
-        if (ctx.roundRect) {
-            ctx.beginPath(); ctx.roundRect(x, y, w, h, r);
-        } else {
+        if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); } else {
             ctx.beginPath(); ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y);
             ctx.quadraticCurveTo(x + w, y, x + w, y + r); ctx.lineTo(x + w, y + h - r);
             ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h); ctx.lineTo(x + r, y + h);
-            ctx.quadraticCurveTo(x, y + h, x, y + h - r); ctx.lineTo(x, y + r);
-            ctx.quadraticCurveTo(x, y, x + r, y);
+            ctx.quadraticCurveTo(x, y + h, x, y + h - r); ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y);
         }
     }
 
-    // --- 2. DATEN EXTRAKTION ---
     function extractSbarFacts() {
         const state = window.CPR.AppState || {};
         const totalSec = state.totalSeconds || 0;
@@ -49,10 +53,8 @@ window.CPR.Export = (function() {
         const compSec = state.compressingSeconds || 0;
         const ccf = arrSec > 0 ? Math.min(100, Math.round((compSec / arrSec) * 100)) : 0;
         const ageStr = state.isPediatric ? (state.patientWeight ? `Kind (${state.patientWeight} kg)` : 'Kind (Gewicht unbek.)') : 'Erwachsener';
-
         let adrTotal = "0 mg", adrCount = state.adrCount || 0;
         if (adrCount > 0) adrTotal = (state.isPediatric && state.patientWeight) ? (adrCount * Math.round(state.patientWeight * 10)) + " µg" : adrCount + " mg";
-
         let amioTotal = "0 mg", amioCount = state.amioCount || 0;
         if (amioCount > 0) amioTotal = (state.isPediatric && state.patientWeight) ? (amioCount * Math.round(state.patientWeight * 5)) + " mg" : (amioCount === 1 ? '300 mg' : '450 mg');
 
@@ -69,26 +71,21 @@ window.CPR.Export = (function() {
         return { ageStr, totalSec, ccf, adrCount, adrTotal, amioCount, amioTotal, aData, sampStr, hitsLogs, hitsHtml, state };
     }
 
-    // --- 3. HTML GENERATOR (Bereinigt von CSS-Range-Killern) ---
     function generateSbarHtml() {
         const { ageStr, totalSec, ccf, adrTotal, amioTotal, aData, sampStr, hitsLogs, hitsHtml, state, adrCount, amioCount } = extractSbarFacts();
         const Utils = window.CPR.Utils;
-
         return `
             <h3 style="margin: 0 0 8px 0; font-size: 16px; color: #E3000F; border-bottom: 2px solid #f1f5f9; padding-bottom: 4px;">S - SITUATION</h3>
             <table style="width: 100%; margin-bottom: 20px; border-collapse: separate; border-spacing: 5px 0;">
                 <tr>
                     <td style="width: 33%; background: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid #e2e8f0; text-align: center;">
-                        <span style="font-size: 10px; color: #64748b;">PATIENT</span><br>
-                        <span style="font-size: 16px; font-weight: bold; color: #0f172a;">${ageStr}</span>
+                        <span style="font-size: 10px; color: #64748b;">PATIENT</span><br><span style="font-size: 16px; font-weight: bold; color: #0f172a;">${ageStr}</span>
                     </td>
                     <td style="width: 33%; background: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid #e2e8f0; text-align: center;">
-                        <span style="font-size: 10px; color: #64748b;">GESAMTDAUER</span><br>
-                        <span style="font-size: 16px; font-weight: bold; color: #0f172a;">${Utils.formatTime(totalSec)} Min</span>
+                        <span style="font-size: 10px; color: #64748b;">GESAMTDAUER</span><br><span style="font-size: 16px; font-weight: bold; color: #0f172a;">${Utils.formatTime(totalSec)} Min</span>
                     </td>
                     <td style="width: 33%; background: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid #e2e8f0; text-align: center;">
-                        <span style="font-size: 10px; color: #64748b;">AKTUELLER STATUS</span><br>
-                        <span style="font-size: 16px; font-weight: bold; color: ${state.state === 'ROSC_ACTIVE' ? '#10b981' : '#0f172a'};">${state.state === 'ROSC_ACTIVE' ? 'ROSC' : 'LAUFENDE CPR'}</span>
+                        <span style="font-size: 10px; color: #64748b;">AKTUELLER STATUS</span><br><span style="font-size: 16px; font-weight: bold; color: ${state.state === 'ROSC_ACTIVE' ? '#10b981' : '#0f172a'};">${state.state === 'ROSC_ACTIVE' ? 'ROSC' : 'LAUFENDE CPR'}</span>
                     </td>
                 </tr>
             </table>
@@ -96,11 +93,7 @@ window.CPR.Export = (function() {
             <h3 style="margin: 0 0 8px 0; font-size: 16px; color: #E3000F; border-bottom: 2px solid #f1f5f9; padding-bottom: 4px;">B - BACKGROUND (ANAMNESE)</h3>
             <div style="background: #ffffff; padding: 15px; border-radius: 6px; border: 1px solid #e2e8f0; margin-bottom: 20px; font-size: 14px;">
                 <table style="width: 100%; border-collapse: collapse;">
-                    <tr>
-                        <td style="padding: 5px 0; width: 33%;"><b>Beobachtet:</b> ${aData.beobachtet || '?'}</td>
-                        <td style="padding: 5px 0; width: 33%;"><b>Laien-REA:</b> ${aData.laienrea || '?'}</td>
-                        <td style="padding: 5px 0; width: 33%;"><b>Brustschmerz:</b> ${aData.brustschmerz || '?'}</td>
-                    </tr>
+                    <tr><td style="padding: 5px 0; width: 33%;"><b>Beobachtet:</b> ${aData.beobachtet || '?'}</td><td style="padding: 5px 0; width: 33%;"><b>Laien-REA:</b> ${aData.laienrea || '?'}</td><td style="padding: 5px 0; width: 33%;"><b>Brustschmerz:</b> ${aData.brustschmerz || '?'}</td></tr>
                 </table>
                 <div style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed #cbd5e1;">
                     <strong style="color: #64748b; display: block; margin-bottom: 5px; font-size: 12px;">SAMPLER:</strong>
@@ -127,27 +120,22 @@ window.CPR.Export = (function() {
 
             <h3 style="margin: 0 0 8px 0; font-size: 16px; color: #E3000F; border-bottom: 2px solid #f1f5f9; padding-bottom: 4px;">R - RESPONSE (MAßNAHMEN)</h3>
             <table style="width: 100%; font-size: 14px; border-collapse: collapse; border: 1px solid #e2e8f0;">
-                <tr><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; width: 30%; color: #64748b; background: #f8fafc;"><strong>Atemweg</strong></td><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-weight: bold;">${state.airwayLabel || 'Nicht dokumentiert'}</td></tr>
-                <tr><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; color: #64748b; background: #f8fafc;"><strong>Zugang</strong></td><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-weight: bold;">${state.zugangLabel || 'Nicht dokumentiert'}</td></tr>
-                <tr><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; color: #64748b; background: #f8fafc;"><strong>Defibrillationen</strong></td><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-weight: bold;">${state.shockCount || 0}x Schocks abgegeben</td></tr>
+                <tr><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; width: 30%; background: #f8fafc;"><strong>Atemweg</strong></td><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-weight: bold;">${state.airwayLabel || 'Nicht dokumentiert'}</td></tr>
+                <tr><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; background: #f8fafc;"><strong>Zugang</strong></td><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-weight: bold;">${state.zugangLabel || 'Nicht dokumentiert'}</td></tr>
+                <tr><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; background: #f8fafc;"><strong>Defibrillationen</strong></td><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-weight: bold;">${state.shockCount || 0}x Schocks abgegeben</td></tr>
                 <tr><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; color: #E3000F; background: #fef2f2;"><strong>Adrenalin</strong></td><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-weight: bold; color: #E3000F;">Gesamt: ${adrTotal} <span style="font-size: 12px; color: #ef4444; font-weight: normal;">(${adrCount} Gaben)</span></td></tr>
                 <tr><td style="padding: 10px; color: #7e22ce; background: #faf5ff;"><strong>Amiodaron</strong></td><td style="padding: 10px; font-weight: bold; color: #7e22ce;">Gesamt: ${amioTotal} <span style="font-size: 12px; color: #a855f7; font-weight: normal;">(${amioCount} Gaben)</span></td></tr>
             </table>
         `;
     }
 
-    // --- 4. CANVAS NOTENBLATT ENGINE ---
+    // --- 4. CANVAS NOTENBLATT ENGINE (Mit Joule & 15s Lineal) ---
     function createTimelineCanvas(data) {
         const events = data.map(d => ({ ...d, iconData: getIconData(d.action), timeStr: window.CPR.Utils.formatRelative(d.secondsFromStart) })).filter(d => d.iconData !== null);
         const maxSec = events.length > 0 ? events[events.length - 1].secondsFromStart : 0;
         
-        let totalCycles = 0;
-        let cSec = 0;
-        while(cSec <= maxSec) {
-            cSec += (cSec < 300) ? 60 : 120;
-            totalCycles++;
-        }
-        totalCycles = Math.max(3, totalCycles); 
+        const cycleDuration = 120;
+        const totalCycles = Math.max(4, Math.ceil(maxSec / cycleDuration)); 
 
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
@@ -171,17 +159,27 @@ window.CPR.Export = (function() {
 
         const paddingX = 80;
         const usableWidth = baseWidth - (paddingX * 2);
-        
         let currentDrawSec = 0;
 
         for (let i = 0; i < totalCycles; i++) {
-            const isChaosPhase = currentDrawSec < 300;
-            const cycleDuration = isChaosPhase ? 60 : 120;
             const cycleEndSec = currentDrawSec + cycleDuration;
             const lineY = 150 + (i * rowHeight);
 
+            // Hauptlinie zeichnen
             ctx.beginPath(); ctx.moveTo(paddingX, lineY); ctx.lineTo(baseWidth - paddingX, lineY);
             ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.stroke();
+            
+            // 🌟 DAS 15-SEKUNDEN LINEAL 🌟
+            for (let t = 15; t < 120; t += 15) {
+                const pct = t / 120;
+                const xTick = paddingX + pct * usableWidth;
+                let tickH = 4;
+                if (t === 60) tickH = 10;
+                else if (t === 30 || t === 90) tickH = 6;
+                ctx.beginPath();
+                ctx.moveTo(xTick, lineY - tickH/2); ctx.lineTo(xTick, lineY + tickH/2);
+                ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 2; ctx.stroke();
+            }
 
             ctx.fillStyle = '#94a3b8'; ctx.font = 'bold 12px Arial'; ctx.textAlign = 'center';
             ctx.fillRect(paddingX - 1, lineY - 6, 2, 12);
@@ -198,8 +196,6 @@ window.CPR.Export = (function() {
 
                 const yOffsets = [12, -12, 28, -28, 44, -44];
                 const yOff = yOffsets[index % yOffsets.length];
-                const isTop = yOff < 0;
-                
                 const boxHeight = 26;
                 const boxY = lineY + yOff - boxHeight/2;
 
@@ -209,6 +205,7 @@ window.CPR.Export = (function() {
                 const boxWidth = textWidth + timeWidth + 40;
                 const boxHalf = boxWidth / 2;
 
+                // Anker-Linie
                 ctx.beginPath(); ctx.moveTo(x, lineY); ctx.lineTo(x, lineY + yOff);
                 ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1.5; ctx.stroke();
 
@@ -218,9 +215,10 @@ window.CPR.Export = (function() {
                 ctx.fill(); ctx.shadowColor = 'transparent';
 
                 let borderColor = '#e2e8f0';
-                if (ev.iconData.type === 'adr') borderColor = '#fca5a5';
+                if (ev.iconData.type === 'adr' || ev.iconData.type === 'shock') borderColor = '#fca5a5';
                 if (ev.iconData.type === 'amio') borderColor = '#d8b4fe';
-                if (ev.iconData.type === 'shock') borderColor = '#fde047';
+                if (ev.iconData.type === 'analysis-yes') borderColor = '#fde047';
+                
                 ctx.strokeStyle = borderColor; ctx.lineWidth = 2; ctx.stroke();
 
                 ctx.fillStyle = '#E3000F'; ctx.font = 'bold 11px monospace'; ctx.textAlign = 'left';
@@ -228,6 +226,7 @@ window.CPR.Export = (function() {
                 ctx.fillStyle = '#334155'; ctx.font = 'bold 11px Arial';
                 ctx.fillText(`${ev.iconData.icon} ${actionText}`, x - boxHalf + 10 + timeWidth + 5, boxY + boxHeight/2);
 
+                // Dot auf der Timeline
                 ctx.beginPath(); ctx.arc(x, lineY, 4, 0, 2 * Math.PI); ctx.fillStyle = '#334155'; ctx.fill();
             });
             
@@ -240,9 +239,7 @@ window.CPR.Export = (function() {
     // --- 5. PDF GENERIERUNG ---
     function generatePdfExport() {
         const { AppState, Utils } = window.CPR;
-        if (!AppState || !AppState.protocolData || AppState.protocolData.length === 0) {
-            alert("Das Protokoll ist leer."); return;
-        }
+        if (!AppState || !AppState.protocolData || AppState.protocolData.length === 0) { alert("Das Protokoll ist leer."); return; }
 
         const btnPdf = document.getElementById('btn-run-pdf-export');
         const origContent = btnPdf ? btnPdf.innerHTML : '';
@@ -256,15 +253,11 @@ window.CPR.Export = (function() {
         const timeStr = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }).replace(':', '');
         const filename = `CPR_Protokoll_${dateStr}_${timeStr}.pdf`;
 
-        // Container NICHT mehr in den Body hängen (um Ghost-Overlays zu vermeiden)
         const container = document.createElement('div');
-        container.style.width = '800px'; 
-        container.style.padding = '30px';
-        container.style.fontFamily = 'Arial, sans-serif';
-        container.style.color = '#1e293b';
-        container.style.backgroundColor = '#ffffff';
+        container.style.position = 'absolute'; container.style.left = '-9999px'; container.style.top = '0';
+        container.style.width = '800px'; container.style.padding = '30px';
+        container.style.fontFamily = 'Arial, sans-serif'; container.style.color = '#1e293b'; container.style.backgroundColor = '#ffffff';
 
-        // HEADER (Clean CSS)
         let html = `
             <table style="width: 100%; border-bottom: 3px solid #E3000F; padding-bottom: 10px; margin-bottom: 20px;">
                 <tr>
@@ -282,17 +275,11 @@ window.CPR.Export = (function() {
 
         html += generateSbarHtml();
 
-        // DEBRIEFING ZUSÄTZE
         if (!isSummary) {
             const data = AppState.protocolData;
-            
             const canvas = createTimelineCanvas(data);
             const imgData = canvas.toDataURL('image/png');
-            html += `
-                <div style="page-break-before: always; padding-top: 10px;">
-                    <img src="${imgData}" style="width: 100%; max-width: 100%; height: auto; display: block;">
-                </div>
-            `;
+            html += `<div style="page-break-before: always; padding-top: 10px;"><img src="${imgData}" style="width: 100%; max-width: 100%; height: auto; display: block;"></div>`;
 
             html += `
                 <div style="page-break-before: always; padding-top: 10px;">
@@ -311,11 +298,19 @@ window.CPR.Export = (function() {
             data.forEach((item, index) => {
                 const bg = index % 2 === 0 ? '#ffffff' : '#f8fafc';
                 const relTime = Utils.formatRelative(item.secondsFromStart);
+                
+                // Emoji safe fallback in text table
+                let safeIcon = '🔹';
+                const iconData = getIconData(item.action);
+                if (iconData) {
+                    safeIcon = iconData.isText ? iconData.icon : iconData.icon;
+                }
+
                 html += `
                     <tr style="background: ${bg}; border-bottom: 1px solid #f1f5f9;">
                         <td style="padding: 6px 10px; color: #64748b;">${item.time}</td>
                         <td style="padding: 6px 10px; font-weight: bold; color: #E3000F;">${relTime}</td>
-                        <td style="padding: 6px 10px; font-weight: bold; color: #334155;">${item.action}</td>
+                        <td style="padding: 6px 10px; font-weight: bold; color: #334155;">${safeIcon} ${item.action}</td>
                     </tr>
                 `;
             });
@@ -325,21 +320,18 @@ window.CPR.Export = (function() {
         html += `<div style="margin-top: 30px; font-size: 10px; color: #94a3b8; text-align: center;">Dieses Protokoll wurde maschinell durch CPR Assist erstellt. Alle Angaben sind fachlich zu prüfen.</div>`;
         
         container.innerHTML = html;
+        document.body.appendChild(container);
 
-        const opt = {
-            margin:       10,
-            filename:     filename,
-            image:        { type: 'jpeg', quality: 0.98 },
-            html2canvas:  { scale: 2, useCORS: true, windowWidth: 800 },
-            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
-        };
+        const opt = { margin: 10, filename: filename, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true, windowWidth: 800 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } };
 
         html2pdf().set(opt).from(container).save().then(() => {
+            document.body.removeChild(container);
             if (btnPdf) btnPdf.innerHTML = origContent;
             const em = document.getElementById('export-modal');
             if (em) em.classList.replace('flex', 'hidden');
             if (Utils.vibrate) Utils.vibrate(30);
         }).catch(err => {
+            document.body.removeChild(container);
             alert("Fehler beim PDF Export: " + err.message);
             if (btnPdf) btnPdf.innerHTML = origContent;
         });
@@ -356,35 +348,17 @@ window.CPR.Export = (function() {
         
         let text = "🚨 REANIMATIONSPROTOKOLL - " + (isSummary ? "ÜBERGABE (SBAR)" : "DEBRIEFING") + "\n";
         text += "Datum: " + new Date().toLocaleDateString() + " | Beginn: " + (AppState.startTime || '--:--') + "\n\n";
-        
-        text += "--- [S] SITUATION ---\n";
-        text += "Patient: " + ageStr + "\nStatus: " + (state.state === 'ROSC_ACTIVE' ? 'ROSC' : 'Laufende CPR') + "\nDauer: " + Utils.formatTime(totalSec) + " Min\n\n";
-
-        text += "--- [B] BACKGROUND ---\n";
-        text += `Beobachtet: ${aData.beobachtet || '?'} | Laien-REA: ${aData.laienrea || '?'} | Brustschmerz: ${aData.brustschmerz || '?'}\n`;
+        text += "--- [S] SITUATION ---\nPatient: " + ageStr + "\nStatus: " + (state.state === 'ROSC_ACTIVE' ? 'ROSC' : 'Laufende CPR') + "\nDauer: " + Utils.formatTime(totalSec) + " Min\n\n";
+        text += "--- [B] BACKGROUND ---\nBeobachtet: " + (aData.beobachtet || '?') + " | Laien-REA: " + (aData.laienrea || '?') + " | Brustschmerz: " + (aData.brustschmerz || '?') + "\n";
         if (sampStr.length > 0) text += sampStr.map(s => s.replace(/<[^>]*>?/gm, '')).join('\n') + "\n";
-        text += "\n";
-
-        text += "--- [A] ASSESSMENT ---\n";
-        text += "CPR Qualität (CCF): " + ccf + "%\n";
-        if (hitsLogs.length > 0) hitsLogs.forEach(h => text += "- " + h.action.replace('HITS: ', '') + "\n");
-        else text += "Keine HITS erfasst.\n";
-        text += "\n";
-
-        text += "--- [R] RESPONSE ---\n";
-        text += "Atemweg: " + (AppState.airwayLabel || 'Nicht dok.') + "\n";
-        text += "Zugang: " + (AppState.zugangLabel || 'Nicht dok.') + "\n";
-        text += "Schocks: " + (AppState.shockCount || 0) + "x abgegeben\n";
-        text += `Adrenalin: ${adrTotal} (${adrCount} Gaben)\n`;
-        text += `Amiodaron: ${amioTotal} (${amioCount} Gaben)\n\n`;
+        text += "\n--- [A] ASSESSMENT ---\nCPR Qualität (CCF): " + ccf + "%\n";
+        if (hitsLogs.length > 0) hitsLogs.forEach(h => text += "- " + h.action.replace('HITS: ', '') + "\n"); else text += "Keine HITS erfasst.\n";
+        text += "\n--- [R] RESPONSE ---\nAtemweg: " + (AppState.airwayLabel || 'Nicht dok.') + "\nZugang: " + (AppState.zugangLabel || 'Nicht dok.') + "\nSchocks: " + (AppState.shockCount || 0) + "x abgegeben\nAdrenalin: " + adrTotal + " (" + adrCount + " Gaben)\nAmiodaron: " + amioTotal + " (" + amioCount + " Gaben)\n\n";
 
         if (!isSummary) {
             text += "--- CHRONOLOGIE ---\n";
-            AppState.protocolData.forEach(item => {
-                text += `[+${Utils.formatTime(item.secondsFromStart)}] ${item.time} | ${item.action}\n`;
-            });
+            AppState.protocolData.forEach(item => { text += `[+${Utils.formatTime(item.secondsFromStart)}] ${item.time} | ${item.action}\n`; });
         }
-        
         text += "\n-- Generiert durch CPR Assist --";
 
         function fallbackCopy(t) {
@@ -397,41 +371,25 @@ window.CPR.Export = (function() {
             if(Utils.vibrate) Utils.vibrate(30);
             const btnTxt = document.getElementById('btn-run-txt-export');
             if(btnTxt) {
-                const oldHtml = btnTxt.innerHTML;
-                btnTxt.innerHTML = '<i class="fa-solid fa-check text-lg"></i> KOPIERT!';
+                const oldHtml = btnTxt.innerHTML; btnTxt.innerHTML = '<i class="fa-solid fa-check text-lg"></i> KOPIERT!';
                 btnTxt.classList.replace('bg-blue-50', 'bg-emerald-50'); btnTxt.classList.replace('text-blue-700', 'text-emerald-700');
                 setTimeout(() => { btnTxt.innerHTML = oldHtml; btnTxt.classList.replace('bg-emerald-50', 'bg-blue-50'); btnTxt.classList.replace('text-emerald-700', 'text-blue-700'); }, 2000);
             }
         }
 
-        if (navigator.clipboard && window.isSecureContext) {
-            navigator.clipboard.writeText(text).then(updateTxtButton).catch(() => fallbackCopy(text));
-        } else {
-            fallbackCopy(text);
-        }
+        if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(updateTxtButton).catch(() => fallbackCopy(text));
+        else fallbackCopy(text);
     }
 
-    // --- 7. EVENT DELEGATION (Der "God Mode" für tote Buttons) ---
+    // --- 7. EVENT DELEGATION ---
     function init() {
         document.addEventListener('click', function(e) {
-            
-            // 1. PDF Generieren Button
             const btnPdf = e.target.closest('#btn-run-pdf-export');
-            if (btnPdf) {
-                e.preventDefault(); e.stopPropagation();
-                generatePdfExport();
-                return;
-            }
+            if (btnPdf) { e.preventDefault(); e.stopPropagation(); generatePdfExport(); return; }
 
-            // 2. Text Kopieren Button
             const btnTxt = e.target.closest('#btn-run-txt-export');
-            if (btnTxt) {
-                e.preventDefault(); e.stopPropagation();
-                generateTxtExport();
-                return;
-            }
+            if (btnTxt) { e.preventDefault(); e.stopPropagation(); generateTxtExport(); return; }
 
-            // 3. Tab "Übergabe"
             const btnShort = e.target.closest('#btn-export-short');
             if (btnShort) {
                 e.preventDefault(); e.stopPropagation();
@@ -444,7 +402,6 @@ window.CPR.Export = (function() {
                 return;
             }
 
-            // 4. Tab "Debriefing"
             const btnLong = e.target.closest('#btn-export-long');
             if (btnLong) {
                 e.preventDefault(); e.stopPropagation();
@@ -457,7 +414,6 @@ window.CPR.Export = (function() {
                 return;
             }
 
-            // 5. Abbrechen Button
             const btnCancel = e.target.closest('#btn-cancel-export');
             if (btnCancel) {
                 e.preventDefault(); e.stopPropagation();
@@ -466,23 +422,11 @@ window.CPR.Export = (function() {
                 return;
             }
 
-            // 6. Export Modal Öffnen (vom Logbuch)
             const btnExportLog = e.target.closest('#btn-export-log');
-            if (btnExportLog) {
-                e.preventDefault(); e.stopPropagation();
-                const em = document.getElementById('export-modal');
-                if (em) em.classList.replace('hidden', 'flex');
-                return;
-            }
+            if (btnExportLog) { e.preventDefault(); e.stopPropagation(); document.getElementById('export-modal')?.classList.replace('hidden', 'flex'); return; }
             
-            // 7. Export Modal Öffnen (vom Debriefing Screen)
             const btnDebriefExport = e.target.closest('#btn-debrief-export');
-            if (btnDebriefExport) {
-                e.preventDefault(); e.stopPropagation();
-                const em = document.getElementById('export-modal');
-                if (em) em.classList.replace('hidden', 'flex');
-                return;
-            }
+            if (btnDebriefExport) { e.preventDefault(); e.stopPropagation(); document.getElementById('export-modal')?.classList.replace('hidden', 'flex'); return; }
         });
     }
 
@@ -490,6 +434,4 @@ window.CPR.Export = (function() {
 
 })();
 
-document.addEventListener('DOMContentLoaded', () => { 
-    setTimeout(() => { if (window.CPR && window.CPR.Export) window.CPR.Export.init(); }, 150); 
-});
+document.addEventListener('DOMContentLoaded', () => { setTimeout(() => { if (window.CPR && window.CPR.Export) window.CPR.Export.init(); }, 150); });
