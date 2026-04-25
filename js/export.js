@@ -1,8 +1,9 @@
 /**
- * CPR Assist - Export Modul (V30 - SBAR & Audit Mode Sync)
+ * CPR Assist - Export Modul (V31 - PDF Fallback Fix)
  * - MEDIZINISCHES UPDATE: Debriefing enthält nun ZUERST das SBAR Übergabe-Protokoll, 
  * dann das grafische Zeitlinien-Grid und abschließend die exakte Listen-Chronologie.
  * - PDF-SAFE: Nutzt strikte <table> Layouts, um Brüche im jsPDF Renderer zu verhindern.
+ * - BUGFIX: letterRendering deaktiviert und &bull; ersetzt, um Emoji-Crashes (setEnd on Range) zu fixen.
  * - SYNC: 100% kongruente Icon- und Daten-Engine zur neuen log-timeline.js.
  */
 
@@ -275,7 +276,7 @@ window.CPR.Export = (function() {
                 <tr>
                     <td style="vertical-align: bottom;">
                         <h1 style="margin: 0; font-size: 26px; color: #0f172a; text-transform: uppercase; letter-spacing: 1px;">Reanimationsprotokoll</h1>
-                        <p style="margin: 5px 0 0 0; color: #64748b; font-size: 12px; font-weight: bold; letter-spacing: 1px;">Modus: ${isSummary ? 'SCHOCKRAUM ÜBERGABE' : 'DEBRIEFING & AUDIT'}</p>
+                        <p style="margin: 5px 0 0 0; color: #64748b; font-size: 12px; font-weight: bold; letter-spacing: 1px;">Generiert durch CPR Assist | MODUS: ${isSummary ? 'SCHOCKRAUM ÜBERGABE' : 'DEBRIEFING & AUDIT'}</p>
                     </td>
                     <td style="vertical-align: bottom; text-align: right; color: #64748b; font-size: 14px;">
                         <strong>Datum:</strong> ${now.toLocaleDateString()}<br>
@@ -334,12 +335,12 @@ window.CPR.Export = (function() {
         html += `<div style="margin-top: 30px; font-size: 10px; color: #94a3b8; text-align: center;">Dieses Protokoll wurde maschinell durch CPR Assist erstellt. Alle Angaben sind fachlich zu prüfen.</div>`;
         container.innerHTML = html;
 
-        // --- PDF RENDERER ---
+        // --- PDF RENDERER (FIXED) ---
         const opt = {
             margin:       10,
             filename:     filename,
             image:        { type: 'jpeg', quality: 0.98 },
-            html2canvas:  { scale: 2, useCORS: true, letterRendering: true, windowWidth: 800 },
+            html2canvas:  { scale: 2, useCORS: true, windowWidth: 800 },
             jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
         };
 
