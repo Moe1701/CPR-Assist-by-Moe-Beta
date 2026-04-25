@@ -1,8 +1,7 @@
 /**
- * CPR Assist - Log Timeline Modul (V43 - Layout Clipping Fix)
- * - BUGFIX: CCF-Wert im SBAR-Dashboard wird auf Android nicht mehr abgeschnitten.
- * Das Layout nutzt nun ein stabiles CSS-Grid und sichere Line-Heights.
- * - UX: Boxen wachsen bei mehr Inhalt (z.B. vielen HITS) automatisch mit.
+ * CPR Assist - Log Timeline Modul (V44 - CCF Layout Fix)
+ * - BUGFIX: CCF-Wert in der Assessment-Box auf ein platzsparendes Inline-Flex-Layout umgebaut.
+ * Dies verhindert das Abschneiden der Zahlen auf Android-WebViews vollständig.
  */
 
 window.CPR = window.CPR || {};
@@ -150,22 +149,22 @@ window.CPR.LogTimeline = (function() {
                     </div>
                 </div>
 
-                <!-- [A] ASSESSMENT (Fix: Grid Layout statt Flex um Clipping zu verhindern) -->
+                <!-- [A] ASSESSMENT (CCF Fix) -->
                 <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                     <div class="bg-amber-50 px-3 py-2 border-b border-amber-100 flex items-center gap-2">
                         <i class="fa-solid fa-stethoscope text-amber-600"></i>
                         <h3 class="text-[11px] font-black text-amber-800 uppercase tracking-widest">A - Assessment</h3>
                     </div>
-                    <div class="p-3 grid grid-cols-3 gap-3">
-                        <div class="col-span-2 flex flex-col justify-center">
+                    <div class="p-3 flex justify-between items-start gap-4">
+                        <div class="flex-1">
                             <span class="block text-[9px] font-bold text-slate-400 uppercase mb-1.5">HITS (Ursachen)</span>
                             <ul class="text-[11px] font-bold text-slate-700 pl-4 list-disc marker:text-amber-400">
                                 ${hitsLogs.length > 0 ? hitsHtml : '<li class="list-none -ml-4 italic text-slate-400 font-normal">Keine erfasst</li>'}
                             </ul>
                         </div>
-                        <div class="bg-slate-50 p-2 rounded-xl border border-slate-100 text-center flex flex-col justify-center min-h-[65px]">
-                            <span class="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">CCF</span>
-                            <span class="text-2xl font-black ${ccfColor} leading-none py-1">${ccf}%</span>
+                        <div class="shrink-0 flex flex-col items-end text-right">
+                            <span class="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">CCF</span>
+                            <span class="text-xl font-black ${ccfColor} leading-none">${ccf}%</span>
                         </div>
                     </div>
                 </div>
