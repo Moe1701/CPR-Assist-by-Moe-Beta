@@ -1,8 +1,6 @@
 /**
- * CPR Assist - Export Modul (V53 - ROSC Zeit & Abbruchgrund)
- * - FEATURE: Zeit bis ROSC und Abbruchgrund werden in der SBAR Ansicht generiert.
- * - NATIVE PDF: Automatisch ins Vektor-Layout des PDFs eingebaut.
- * - TXT EXPORT: Wird beim Kopieren in die Zwischenablage sauber mit übergeben.
+ * CPR Assist - Export Modul (V54 - Data Extraction Fix)
+ * - BUGFIX: Synchronisiert mit V54 der log-timeline.js für robusteres ROSC, Abbruch und Pausen-Matching.
  */
 
 window.CPR = window.CPR || {};
@@ -42,17 +40,20 @@ window.CPR.Export = (function() {
         let currentStart = null;
         data.forEach(d => {
             const t = d.action.toLowerCase();
-            if (t.includes('kompression pause')) currentStart = d.secondsFromStart;
-            else if (t.includes('kompression fortgesetzt') && currentStart !== null) {
-                pauses.push({ start: currentStart, end: d.secondsFromStart, duration: d.secondsFromStart - currentStart });
-                currentStart = null;
+            if ( ((t.includes('kompression') || t.includes('cpr')) && (t.includes('paus') || t.includes('stop') || t.includes('unterbroch'))) || t.includes('analyse') || t.includes('schockbar') ) {
+                if (currentStart === null) currentStart = d.secondsFromStart;
+            }
+            else if ((t.includes('kompression') || t.includes('cpr')) && (t.includes('fortgesetzt') || t.includes('start') || t.includes('weiter'))) {
+                if (currentStart !== null) {
+                    pauses.push({ start: currentStart, end: d.secondsFromStart, duration: d.secondsFromStart - currentStart });
+                    currentStart = null;
+                }
             }
         });
         if (currentStart !== null) pauses.push({ start: currentStart, end: maxSec, duration: maxSec - currentStart, ongoing: true });
         return pauses;
     }
 
-    // --- 2. DATA HARVESTER (Synchron mit Timeline) ---
     function extractSbarFacts() {
         const state = window.CPR.AppState || {};
         const data = state.protocolData || [];
@@ -76,52 +77,39 @@ window.CPR.Export = (function() {
         const hitsArr = hitsLogs.map(h => h.action.replace('HITS: ', ''));
 
         // 🌟 END-STATUS & ROSC-ZEIT ERMITTELN 🌟
-        let endStatus = state.isRunning ? 'Laufende CPR' : (state.state === 'ROSC_ACTIVE' ? 'ROSC' : 'Laufende CPR');
+        let endStatus = 'Laufende CPR';
         let timeToRosc = null;
         let abbruchReason = null;
 
-        for (let i = 0; i < data.length; i++) {
-            if (data[i].action.toLowerCase().includes('rosc!') && timeToRosc === null) {
-                timeToRosc = data[i].secondsFromStart;
-                break;
-            }
-        }
-
-        for (let i = data.length - 1; i >= 0; i--) {
-            const t = data[i].action.toLowerCase();
-            if (t.includes('abbruch') || t.includes('beendet')) {
-                endStatus = 'Abbruch';
-                const parts = data[i].action.split(':');
-                abbruchReason = parts.length > 1 ? parts[1].trim() : 'Nicht dokumentiert';
-                break;
-            }
-            if (t.includes('rosc!')) {
+        data.forEach(d => {
+            const t = d.action.toLowerCase();
+            if (t.includes('rosc') && !t.includes('re-arrest')) {
                 endStatus = 'ROSC';
-                break;
+                if (timeToRosc === null) timeToRosc = d.secondsFromStart;
+            } else if (t.includes('re-arrest') || t.includes('start rea')) {
+                endStatus = 'Laufende CPR';
+            } else if (t.includes('abbruch') || t.includes('beendet')) {
+                endStatus = 'Abbruch';
+                const parts = d.action.split(':');
+                if (parts.length > 1) abbruchReason = parts[1].trim();
             }
-            if (t.includes('re-arrest') || t.includes('start rea')) {
-                endStatus = state.isRunning ? 'Laufende CPR' : 'Pausiert';
-                break;
-            }
-        }
+        });
 
         return { ageStr, totalSec, ccf, adrCount, adrTotal, amioCount, amioTotal, aData, sampStr, hitsArr, state, data, endStatus, timeToRosc, abbruchReason };
     }
 
-    // --- 3. NATIVE SBAR DRAWING (jsPDF Vektor-Text) ---
+    // --- 2. NATIVE SBAR DRAWING (jsPDF Vektor-Text) ---
     function drawSbarNative(doc, facts) {
         const { ageStr, totalSec, ccf, adrTotal, amioTotal, aData, sampStr, hitsArr, state, adrCount, amioCount, endStatus, timeToRosc, abbruchReason } = facts;
         const Utils = window.CPR.Utils;
         
         let y = 45;
         
-        // Titel: S - SITUATION
         doc.setFontSize(14); doc.setTextColor(227, 0, 15); doc.setFont("helvetica", "bold");
         doc.text("S - SITUATION", 15, y);
         doc.setDrawColor(241, 245, 249); doc.setLineWidth(0.5); doc.line(15, y+2, 195, y+2);
         y += 10;
 
-        // Boxen Situation (Breiten optimiert für Status-Text)
         doc.setFillColor(248, 250, 252); doc.setDrawColor(226, 232, 240); doc.setLineWidth(0.2);
         doc.roundedRect(15, y, 55, 24, 2, 2, 'FD');  // Patient
         doc.roundedRect(75, y, 45, 24, 2, 2, 'FD');  // Dauer
@@ -153,7 +141,6 @@ window.CPR.Export = (function() {
         
         y += 35;
 
-        // Titel: B - BACKGROUND
         doc.setFontSize(14); doc.setTextColor(227, 0, 15); doc.setFont("helvetica", "bold");
         doc.text("B - BACKGROUND (ANAMNESE)", 15, y);
         doc.setDrawColor(241, 245, 249); doc.setLineWidth(0.5); doc.line(15, y+2, 195, y+2);
@@ -179,7 +166,6 @@ window.CPR.Export = (function() {
         
         y += 50;
 
-        // Titel: A - ASSESSMENT
         doc.setFontSize(14); doc.setTextColor(227, 0, 15); doc.setFont("helvetica", "bold");
         doc.text("A - ASSESSMENT (DIAGNOSTIK)", 15, y);
         doc.setDrawColor(241, 245, 249); doc.setLineWidth(0.5); doc.line(15, y+2, 195, y+2);
@@ -208,7 +194,6 @@ window.CPR.Export = (function() {
         
         y += 45;
 
-        // Titel: R - RESPONSE
         doc.setFontSize(14); doc.setTextColor(227, 0, 15); doc.setFont("helvetica", "bold");
         doc.text("R - RESPONSE (MAßNAHMEN)", 15, y);
         doc.setDrawColor(241, 245, 249); doc.setLineWidth(0.5); doc.line(15, y+2, 195, y+2);
@@ -242,14 +227,13 @@ window.CPR.Export = (function() {
         }
     }
 
-    function createTimelineCanvasChunk(data, pauses, pageIndex) {
+    function createTimelineCanvasChunk(data, pauses, pageIndex, maxSecOverall) {
         const events = data.map(d => ({ ...d, iconData: getIconData(d.action), timeStr: window.CPR.Utils.formatRelative(d.secondsFromStart) })).filter(d => d.iconData !== null);
         
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
         const scale = 2; 
         
-        // A4 Proportionen für Querformat-Einpassung
         const baseWidth = 1400; 
         const baseHeight = 900; 
         
@@ -260,7 +244,6 @@ window.CPR.Export = (function() {
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, baseWidth, baseHeight);
 
-        // Header & Legende
         ctx.fillStyle = '#64748b'; ctx.font = 'bold 20px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText(`GRAFISCHES ZEITLINIEN-GRID (Seite ${pageIndex + 1})`, baseWidth / 2, 40);
         
@@ -271,20 +254,18 @@ window.CPR.Export = (function() {
         const paddingX = 80;
         const usableWidth = baseWidth - (paddingX * 2);
         
-        // 5 Linien, je 4 Minuten (240s)
         const cycleDuration = 240; 
         const startSecForPage = pageIndex * 5 * cycleDuration;
 
         for (let i = 0; i < 5; i++) {
             const currentDrawSec = startSecForPage + (i * cycleDuration);
+            if (currentDrawSec > maxSecOverall && i > 0) break; // Leere Zeilen am Ende sparen, außer die allererste
             const cycleEndSec = currentDrawSec + cycleDuration;
-            const lineY = 160 + (i * 150); // Abstand zwischen den 5 Linien
+            const lineY = 160 + (i * 150);
 
-            // Hauptlinie
             ctx.beginPath(); ctx.moveTo(paddingX, lineY); ctx.lineTo(baseWidth - paddingX, lineY);
             ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.stroke();
             
-            // 🌟 15-SEKUNDEN LINEAL (4 Min = 240s = 16 Ticks)
             for (let t = 15; t < cycleDuration; t += 15) {
                 const tickSec = currentDrawSec + t;
                 const pct = t / cycleDuration;
@@ -300,7 +281,6 @@ window.CPR.Export = (function() {
                 }
             }
             
-            // 🌟 CPR PAUSEN 🌟
             pauses.forEach(p => {
                 const pStart = Math.max(p.start, currentDrawSec);
                 const pEnd = Math.min(p.end, cycleEndSec);
@@ -321,14 +301,12 @@ window.CPR.Export = (function() {
                 }
             });
 
-            // Start/Ende Labels der Zeile
             ctx.fillStyle = '#94a3b8'; ctx.font = 'bold 14px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
             ctx.fillRect(paddingX - 1, lineY - 8, 2, 16);
             ctx.fillText(window.CPR.Utils.formatTime(currentDrawSec), paddingX, lineY - 12);
             ctx.fillRect(paddingX + usableWidth - 1, lineY - 8, 2, 16);
             ctx.fillText(window.CPR.Utils.formatTime(cycleEndSec), paddingX + usableWidth, lineY - 12);
 
-            // Events einzeichnen
             const cycleEvents = events.filter(e => e.secondsFromStart >= currentDrawSec && e.secondsFromStart < cycleEndSec);
 
             cycleEvents.forEach((ev, index) => {
@@ -336,7 +314,7 @@ window.CPR.Export = (function() {
                 const pct = secInCycle / cycleDuration;
                 const x = paddingX + (pct * usableWidth);
 
-                const yOffsets = [15, -15, 35, -35, 55, -55]; // Starke Spreizung wegen 4 Minuten Dichte
+                const yOffsets = [15, -15, 35, -35, 55, -55];
                 const yOff = yOffsets[index % yOffsets.length];
                 const boxHeight = 28;
                 const boxY = lineY + yOff - boxHeight/2;
@@ -395,15 +373,12 @@ window.CPR.Export = (function() {
         const timeStr = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }).replace(':', '');
         const filename = `CPR_Protokoll_${dateStr.replace(/\./g, '-')}_${timeStr}.pdf`;
 
-        // Native jsPDF Engine initialisieren
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
         
         const facts = extractSbarFacts();
 
-        // ----------------------------------------------------
-        // SEITE 1: HEADER & SBAR (HOCHFORMAT)
-        // ----------------------------------------------------
+        // SEITE 1: HEADER & SBAR
         doc.setFontSize(22); doc.setTextColor(15, 23, 42); doc.setFont("helvetica", "bold");
         doc.text("REANIMATIONSPROTOKOLL", 15, 20);
         
@@ -424,28 +399,24 @@ window.CPR.Export = (function() {
         if (!isSummary) {
             const data = AppState.protocolData;
             
-            // ----------------------------------------------------
-            // SEITE 2+: ZEITLINIE (QUERFORMAT, 5 Linien à 4 Min)
-            // ----------------------------------------------------
-            const maxSec = data.length > 0 ? data[data.length - 1].secondsFromStart : 0;
+            // SEITE 2+: ZEITLINIE
+            // Nutze die maxSec aus dem log-Verlauf ODER den aktuellen Haupttimer (damit nichts abgeschnitten wird)
+            const maxSec = data.length > 0 ? Math.max(AppState.totalSeconds || 0, data[data.length - 1].secondsFromStart) : (AppState.totalSeconds || 0);
             const pauses = extractPauses(data, maxSec);
-            const totalPagesTimeline = Math.max(1, Math.ceil(maxSec / (5 * 240))); // 1200s (20 Min) pro Seite
+            const totalPagesTimeline = Math.max(1, Math.ceil(maxSec / (5 * 240))); 
 
             for (let p = 0; p < totalPagesTimeline; p++) {
                 doc.addPage('a4', 'landscape');
-                const canvas = createTimelineCanvasChunk(data, pauses, p);
+                const canvas = createTimelineCanvasChunk(data, pauses, p, maxSec);
                 const imgData = canvas.toDataURL('image/png');
                 
-                // Canvas einpassen (A4 Querformat: 297x210mm)
                 doc.addImage(imgData, 'PNG', 10, 10, 277, 190);
                 
                 doc.setFontSize(8); doc.setTextColor(148, 163, 184); doc.setFont("helvetica", "normal");
                 doc.text("Generiert durch CPR Assist", 148.5, 205, {align: 'center'});
             }
 
-            // ----------------------------------------------------
-            // SEITE X+: CHRONOLOGIE LISTE (HOCHFORMAT)
-            // ----------------------------------------------------
+            // SEITE X+: CHRONOLOGIE LISTE
             doc.addPage('a4', 'portrait');
             let listY = 20;
             
@@ -455,7 +426,6 @@ window.CPR.Export = (function() {
             doc.setDrawColor(226, 232, 240); doc.setLineWidth(0.5); doc.line(15, listY, 195, listY);
             listY += 8;
 
-            // Tabellenkopf
             doc.setFillColor(241, 245, 249); doc.rect(15, listY-6, 180, 10, 'F');
             doc.setFontSize(10); doc.setTextColor(15, 23, 42); doc.setFont("helvetica", "bold");
             doc.text("Uhrzeit", 20, listY);
@@ -464,16 +434,13 @@ window.CPR.Export = (function() {
             doc.line(15, listY+4, 195, listY+4);
             listY += 10;
 
-            // Tabellen Inhalt
             data.forEach(item => {
-                // Emojis filtern, da jsPDF diese in Helvetica nicht nativ drucken kann! 
                 const relTime = Utils.formatRelative(item.secondsFromStart);
                 const plainAction = item.action.replace(/[\u1000-\uFFFF]+/g, '').trim(); 
                 
                 const splitText = doc.splitTextToSize(plainAction, 110);
                 const rowHeight = splitText.length * 5;
 
-                // Seitenumbruch, wenn Platz nicht reicht
                 if (listY + rowHeight > 275) {
                     doc.addPage('a4', 'portrait');
                     listY = 20;
@@ -497,7 +464,6 @@ window.CPR.Export = (function() {
             doc.text("Dieses Protokoll wurde maschinell durch CPR Assist erstellt. Alle Angaben sind fachlich zu prüfen.", 105, 285, {align: 'center'});
         }
 
-        // PDF Native Speichern!
         try {
             doc.save(filename);
             if (Utils.vibrate) Utils.vibrate(30);
