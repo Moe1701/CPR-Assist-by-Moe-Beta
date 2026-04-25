@@ -1,7 +1,6 @@
 /**
- * CPR Assist - Export Modul (V51 - Native jsPDF Engine & Landscape Timeline)
- * - ARCHITEKTUR-WECHSEL: Komplett auf native jsPDF umgestellt! Keine html2pdf.js/html2canvas Abstürze mehr.
- * - SBAR & CHRONOLOGIE: Werden nativ als gestochen scharfer Vektor-Text ins PDF gezeichnet.
+ * CPR Assist - Export Modul (V52 - Native jsPDF Engine & Landscape Timeline 4 Min)
+ * - ARCHITEKTUR-WECHSEL: Komplett auf native jsPDF umgestellt!
  * - ZEITLINIE: Querformat (Landscape), exakt 5 Linien à 4 Minuten (240s) = 20 Minuten pro A4-Seite.
  */
 
