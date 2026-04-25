@@ -1,15 +1,15 @@
 /**
- * CPR Assist - Export Modul (V44 - The Bulletproof Overlay Fix)
- * - BUGFIX 1 (Leere PDFs): Das PDF wird nun ZWISCHEN einem Ladebildschirm und der App gerendert. 
- * Dies zwingt Android dazu, die Pixel vollständig zu zeichnen, verhindert aber, dass der User das Flackern sieht.
- * - BUGFIX 2 (Eine Riesenseite): Strikte .page-break Klassen zwingen die Engine in saubere A4 Seiten.
+ * CPR Assist - Export Modul (V51 - Native jsPDF Engine & Landscape Timeline)
+ * - ARCHITEKTUR-WECHSEL: Komplett auf native jsPDF umgestellt! Keine html2pdf.js/html2canvas Abstürze mehr.
+ * - SBAR & CHRONOLOGIE: Werden nativ als gestochen scharfer Vektor-Text ins PDF gezeichnet.
+ * - ZEITLINIE: Querformat (Landscape), exakt 5 Linien à 4 Minuten (240s) = 20 Minuten pro A4-Seite.
  */
 
 window.CPR = window.CPR || {};
 
 window.CPR.Export = (function() {
 
-    // --- 1. ICON LOGIK ---
+    // --- 1. ICON LOGIK (Für Canvas) ---
     function getIconData(txt) {
         if (!txt) return null;
         const t = txt.toLowerCase();
@@ -52,15 +52,6 @@ window.CPR.Export = (function() {
         return pauses;
     }
 
-    function drawSafeRoundRect(ctx, x, y, w, h, r) {
-        if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); } else {
-            ctx.beginPath(); ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y);
-            ctx.quadraticCurveTo(x + w, y, x + w, y + r); ctx.lineTo(x + w, y + h - r);
-            ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h); ctx.lineTo(x + r, y + h);
-            ctx.quadraticCurveTo(x, y + h, x, y + h - r); ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y);
-        }
-    }
-
     function extractSbarFacts() {
         const state = window.CPR.AppState || {};
         const totalSec = state.totalSeconds || 0;
@@ -77,88 +68,146 @@ window.CPR.Export = (function() {
         let sampStr = [];
         if (aData.sampler) {
             const sMap = {s:'Symptome', a:'Allergien', m:'Medikamente', p:'Vorerkrankungen', l:'Letzte Mahlzeit', e:'Ereignis', r:'Risikofaktoren'};
-            Object.keys(sMap).forEach(k => { if (aData.sampler[k]) sampStr.push(`<b>${sMap[k]}:</b> ${aData.sampler[k]}`); });
+            Object.keys(sMap).forEach(k => { if (aData.sampler[k]) sampStr.push(`${sMap[k]}: ${aData.sampler[k]}`); });
         }
         const data = state.protocolData || [];
         const hitsLogs = data.filter(d => d.action.includes('HITS:'));
-        const hitsHtml = hitsLogs.map(h => `<li style="margin-bottom: 4px;">${h.action.replace('HITS: ', '')}</li>`).join('');
+        const hitsArr = hitsLogs.map(h => h.action.replace('HITS: ', ''));
 
-        return { ageStr, totalSec, ccf, adrCount, adrTotal, amioCount, amioTotal, aData, sampStr, hitsLogs, hitsHtml, state };
+        return { ageStr, totalSec, ccf, adrCount, adrTotal, amioCount, amioTotal, aData, sampStr, hitsArr, state, data };
     }
 
-    function generateSbarHtml() {
-        const { ageStr, totalSec, ccf, adrTotal, amioTotal, aData, sampStr, hitsLogs, hitsHtml, state, adrCount, amioCount } = extractSbarFacts();
+    // --- 2. NATIVE SBAR DRAWING (jsPDF Vektor-Text) ---
+    function drawSbarNative(doc, facts) {
+        const { ageStr, totalSec, ccf, adrTotal, amioTotal, aData, sampStr, hitsArr, state, adrCount, amioCount } = facts;
         const Utils = window.CPR.Utils;
-        return `
-            <h3 style="margin: 0 0 8px 0; font-size: 16px; color: #E3000F; border-bottom: 2px solid #f1f5f9; padding-bottom: 4px;">S - SITUATION</h3>
-            <table style="width: 100%; margin-bottom: 20px; border-collapse: separate; border-spacing: 5px 0;">
-                <tr>
-                    <td style="width: 33%; background: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid #e2e8f0; text-align: center;">
-                        <span style="font-size: 10px; color: #64748b;">PATIENT</span><br><span style="font-size: 16px; font-weight: bold; color: #0f172a;">${ageStr}</span>
-                    </td>
-                    <td style="width: 33%; background: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid #e2e8f0; text-align: center;">
-                        <span style="font-size: 10px; color: #64748b;">GESAMTDAUER</span><br><span style="font-size: 16px; font-weight: bold; color: #0f172a;">${Utils.formatTime(totalSec)} Min</span>
-                    </td>
-                    <td style="width: 33%; background: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid #e2e8f0; text-align: center;">
-                        <span style="font-size: 10px; color: #64748b;">AKTUELLER STATUS</span><br><span style="font-size: 16px; font-weight: bold; color: ${state.state === 'ROSC_ACTIVE' ? '#10b981' : '#0f172a'};">${state.state === 'ROSC_ACTIVE' ? 'ROSC' : 'LAUFENDE CPR'}</span>
-                    </td>
-                </tr>
-            </table>
+        
+        let y = 45;
+        
+        // Titel: S - SITUATION
+        doc.setFontSize(14); doc.setTextColor(227, 0, 15); doc.setFont("helvetica", "bold");
+        doc.text("S - SITUATION", 15, y);
+        doc.setDrawColor(241, 245, 249); doc.setLineWidth(0.5); doc.line(15, y+2, 195, y+2);
+        y += 10;
 
-            <h3 style="margin: 0 0 8px 0; font-size: 16px; color: #E3000F; border-bottom: 2px solid #f1f5f9; padding-bottom: 4px;">B - BACKGROUND (ANAMNESE)</h3>
-            <div style="background: #ffffff; padding: 15px; border-radius: 6px; border: 1px solid #e2e8f0; margin-bottom: 20px; font-size: 14px;">
-                <table style="width: 100%; border-collapse: collapse;">
-                    <tr><td style="padding: 5px 0; width: 33%;"><b>Beobachtet:</b> ${aData.beobachtet || '?'}</td><td style="padding: 5px 0; width: 33%;"><b>Laien-REA:</b> ${aData.laienrea || '?'}</td><td style="padding: 5px 0; width: 33%;"><b>Brustschmerz:</b> ${aData.brustschmerz || '?'}</td></tr>
-                </table>
-                <div style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed #cbd5e1;">
-                    <strong style="color: #64748b; display: block; margin-bottom: 5px; font-size: 12px;">SAMPLER:</strong>
-                    ${sampStr.length > 0 ? sampStr.join('<br>') : '<span style="color: #94a3b8; font-style: italic;">Keine SAMPLER-Daten erfasst.</span>'}
-                </div>
-            </div>
+        // Boxen Situation
+        doc.setFillColor(248, 250, 252); doc.setDrawColor(226, 232, 240); doc.setLineWidth(0.2);
+        doc.roundedRect(15, y, 55, 18, 2, 2, 'FD');
+        doc.roundedRect(75, y, 60, 18, 2, 2, 'FD');
+        doc.roundedRect(140, y, 55, 18, 2, 2, 'FD');
+        
+        doc.setFontSize(8); doc.setTextColor(100, 116, 139); doc.setFont("helvetica", "normal");
+        doc.text("PATIENT", 42.5, y+6, {align: 'center'});
+        doc.text("GESAMTDAUER", 105, y+6, {align: 'center'});
+        doc.text("AKTUELLER STATUS", 167.5, y+6, {align: 'center'});
+        
+        doc.setFontSize(12); doc.setTextColor(15, 23, 42); doc.setFont("helvetica", "bold");
+        doc.text(ageStr, 42.5, y+14, {align: 'center'});
+        doc.text(`${Utils.formatTime(totalSec)} Min`, 105, y+14, {align: 'center'});
+        if(state.state === 'ROSC_ACTIVE') doc.setTextColor(16, 185, 129);
+        doc.text(state.state === 'ROSC_ACTIVE' ? 'ROSC' : 'LAUFENDE CPR', 167.5, y+14, {align: 'center'});
+        
+        y += 30;
 
-            <h3 style="margin: 0 0 8px 0; font-size: 16px; color: #E3000F; border-bottom: 2px solid #f1f5f9; padding-bottom: 4px;">A - ASSESSMENT (DIAGNOSTIK)</h3>
-            <div style="background: #ffffff; padding: 15px; border-radius: 6px; border: 1px solid #e2e8f0; margin-bottom: 20px; font-size: 14px;">
-                <table style="width: 100%; border-collapse: collapse;">
-                    <tr>
-                        <td style="vertical-align: top; width: 60%; padding-right: 15px;">
-                            <strong style="color: #64748b; display: block; margin-bottom: 5px; font-size: 12px;">Reversible Ursachen (HITS):</strong>
-                            ${hitsLogs.length > 0 ? `<ul style="margin: 0; padding-left: 20px;">${hitsHtml}</ul>` : '<span style="color: #94a3b8; font-style: italic;">Keine Ursachen (HITS) erfasst.</span>'}
-                        </td>
-                        <td style="vertical-align: top; border-left: 1px solid #e2e8f0; padding-left: 15px; width: 40%; text-align: center;">
-                            <strong style="color: #64748b; display: block; margin-bottom: 5px; font-size: 12px;">CPR Qualität (CCF):</strong>
-                            <span style="font-size: 28px; font-weight: bold; color: ${ccf >= 80 ? '#10b981' : '#E3000F'};">${ccf}%</span>
-                            <div style="font-size: 10px; color: #94a3b8; margin-top: 5px;">Zielwert: > 80%</div>
-                        </td>
-                    </tr>
-                </table>
-            </div>
+        // Titel: B - BACKGROUND
+        doc.setFontSize(14); doc.setTextColor(227, 0, 15); doc.setFont("helvetica", "bold");
+        doc.text("B - BACKGROUND (ANAMNESE)", 15, y);
+        doc.setDrawColor(241, 245, 249); doc.setLineWidth(0.5); doc.line(15, y+2, 195, y+2);
+        y += 8;
 
-            <h3 style="margin: 0 0 8px 0; font-size: 16px; color: #E3000F; border-bottom: 2px solid #f1f5f9; padding-bottom: 4px;">R - RESPONSE (MAßNAHMEN)</h3>
-            <table style="width: 100%; font-size: 14px; border-collapse: collapse; border: 1px solid #e2e8f0;">
-                <tr><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; width: 30%; background: #f8fafc;"><strong>Atemweg</strong></td><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-weight: bold;">${state.airwayLabel || 'Nicht dokumentiert'}</td></tr>
-                <tr><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; background: #f8fafc;"><strong>Zugang</strong></td><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-weight: bold;">${state.zugangLabel || 'Nicht dokumentiert'}</td></tr>
-                <tr><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; background: #f8fafc;"><strong>Defibrillationen</strong></td><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-weight: bold;">${state.shockCount || 0}x Schocks abgegeben</td></tr>
-                <tr><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; color: #E3000F; background: #fef2f2;"><strong>Adrenalin</strong></td><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-weight: bold; color: #E3000F;">Gesamt: ${adrTotal} <span style="font-size: 12px; color: #ef4444; font-weight: normal;">(${adrCount} Gaben)</span></td></tr>
-                <tr><td style="padding: 10px; color: #7e22ce; background: #faf5ff;"><strong>Amiodaron</strong></td><td style="padding: 10px; font-weight: bold; color: #7e22ce;">Gesamt: ${amioTotal} <span style="font-size: 12px; color: #a855f7; font-weight: normal;">(${amioCount} Gaben)</span></td></tr>
-            </table>
-        `;
+        doc.roundedRect(15, y, 180, 40, 2, 2, 'S');
+        doc.setFontSize(10); doc.setTextColor(15, 23, 42); doc.setFont("helvetica", "bold");
+        doc.text("Beobachtet:", 20, y+8); doc.setFont("helvetica", "normal"); doc.text(aData.beobachtet || '?', 45, y+8);
+        doc.setFont("helvetica", "bold"); doc.text("Laien-REA:", 80, y+8); doc.setFont("helvetica", "normal"); doc.text(aData.laienrea || '?', 105, y+8);
+        doc.setFont("helvetica", "bold"); doc.text("Brustschmerz:", 140, y+8); doc.setFont("helvetica", "normal"); doc.text(aData.brustschmerz || '?', 170, y+8);
+        
+        doc.setDrawColor(203, 213, 225); doc.setLineDashPattern([2, 2], 0); doc.line(20, y+14, 190, y+14); doc.setLineDashPattern([], 0);
+        
+        doc.setFontSize(9); doc.setTextColor(100, 116, 139); doc.setFont("helvetica", "bold");
+        doc.text("SAMPLER:", 20, y+20);
+        doc.setFontSize(10); doc.setTextColor(15, 23, 42); doc.setFont("helvetica", "normal");
+        if(sampStr.length > 0) {
+            let sy = y+25;
+            sampStr.forEach(s => { doc.text(s, 20, sy); sy += 5; });
+        } else {
+            doc.setFont("helvetica", "italic"); doc.setTextColor(148, 163, 184); doc.text("Keine SAMPLER-Daten erfasst.", 20, y+25);
+        }
+        
+        y += 50;
+
+        // Titel: A - ASSESSMENT
+        doc.setFontSize(14); doc.setTextColor(227, 0, 15); doc.setFont("helvetica", "bold");
+        doc.text("A - ASSESSMENT (DIAGNOSTIK)", 15, y);
+        doc.setDrawColor(241, 245, 249); doc.setLineWidth(0.5); doc.line(15, y+2, 195, y+2);
+        y += 8;
+
+        doc.roundedRect(15, y, 180, 35, 2, 2, 'S');
+        doc.setFontSize(9); doc.setTextColor(100, 116, 139); doc.setFont("helvetica", "bold");
+        doc.text("Reversible Ursachen (HITS):", 20, y+8);
+        
+        doc.setFontSize(10); doc.setTextColor(15, 23, 42); doc.setFont("helvetica", "normal");
+        if(hitsArr.length > 0) {
+            let hy = y+14;
+            hitsArr.forEach(h => { doc.text("- " + h, 20, hy); hy += 6; });
+        } else {
+            doc.setFont("helvetica", "italic"); doc.setTextColor(148, 163, 184); doc.text("Keine Ursachen (HITS) erfasst.", 20, y+14);
+        }
+
+        doc.setDrawColor(226, 232, 240); doc.setLineWidth(0.2); doc.line(135, y+2, 135, y+33);
+        doc.setFontSize(9); doc.setTextColor(100, 116, 139); doc.setFont("helvetica", "bold");
+        doc.text("CPR Qualität (CCF):", 165, y+10, {align: 'center'});
+        
+        doc.setFontSize(24); doc.setFont("helvetica", "bold");
+        if (ccf >= 80) doc.setTextColor(16, 185, 129); else doc.setTextColor(227, 0, 15);
+        doc.text(`${ccf}%`, 165, y+22, {align: 'center'});
+        doc.setFontSize(8); doc.setTextColor(148, 163, 184); doc.text("Zielwert: > 80%", 165, y+28, {align: 'center'});
+        
+        y += 45;
+
+        // Titel: R - RESPONSE
+        doc.setFontSize(14); doc.setTextColor(227, 0, 15); doc.setFont("helvetica", "bold");
+        doc.text("R - RESPONSE (MAßNAHMEN)", 15, y);
+        doc.setDrawColor(241, 245, 249); doc.setLineWidth(0.5); doc.line(15, y+2, 195, y+2);
+        y += 8;
+
+        const drawRow = (yPos, label, val, isRed=false, isPurp=false) => {
+            doc.setFillColor(isRed ? 254 : (isPurp ? 250 : 248), isRed ? 242 : (isPurp ? 245 : 250), isRed ? 242 : (isPurp ? 255 : 252));
+            doc.rect(15, yPos, 60, 8, 'FD'); doc.rect(75, yPos, 120, 8, 'S');
+            doc.setFontSize(10); doc.setFont("helvetica", "bold");
+            doc.setTextColor(100, 116, 139); if(isRed) doc.setTextColor(227, 0, 15); if(isPurp) doc.setTextColor(126, 34, 206);
+            doc.text(label, 20, yPos+5.5);
+            doc.setTextColor(15, 23, 42); if(isRed) doc.setTextColor(227, 0, 15); if(isPurp) doc.setTextColor(126, 34, 206);
+            doc.text(val, 80, yPos+5.5);
+        };
+
+        doc.setDrawColor(226, 232, 240); doc.setLineWidth(0.2);
+        drawRow(y, "Atemweg", state.airwayLabel || 'Nicht dokumentiert');
+        drawRow(y+8, "Zugang", state.zugangLabel || 'Nicht dokumentiert');
+        drawRow(y+16, "Defibrillationen", `${state.shockCount || 0}x Schocks abgegeben`);
+        drawRow(y+24, "Adrenalin", `Gesamt: ${adrTotal} (${adrCount} Gaben)`, true, false);
+        drawRow(y+32, "Amiodaron", `Gesamt: ${amioTotal} (${amioCount} Gaben)`, false, true);
     }
 
-    // --- 4. CANVAS NOTENBLATT ENGINE ---
-    function createTimelineCanvas(data) {
-        const events = data.map(d => ({ ...d, iconData: getIconData(d.action), timeStr: window.CPR.Utils.formatRelative(d.secondsFromStart) })).filter(d => d.iconData !== null);
-        const maxSec = data.length > 0 ? data[data.length - 1].secondsFromStart : 0;
-        const pauses = extractPauses(data, maxSec);
-        
-        const cycleDuration = 120;
-        const totalCycles = Math.max(4, Math.ceil(maxSec / cycleDuration)); 
+    // --- 3. CANVAS NOTENBLATT ENGINE (QUERFORMAT: 5x 4-Minuten) ---
+    function drawSafeRoundRect(ctx, x, y, w, h, r) {
+        if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); } else {
+            ctx.beginPath(); ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y);
+            ctx.quadraticCurveTo(x + w, y, x + w, y + r); ctx.lineTo(x + w, y + h - r);
+            ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h); ctx.lineTo(x + r, y + h);
+            ctx.quadraticCurveTo(x, y + h, x, y + h - r); ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y);
+        }
+    }
 
+    function createTimelineCanvasChunk(data, pauses, pageIndex) {
+        const events = data.map(d => ({ ...d, iconData: getIconData(d.action), timeStr: window.CPR.Utils.formatRelative(d.secondsFromStart) })).filter(d => d.iconData !== null);
+        
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
         const scale = 2; 
-        const rowHeight = 160; 
-        const baseWidth = 1200; 
-        const baseHeight = 120 + (totalCycles * rowHeight); 
+        
+        // A4 Proportionen für Querformat-Einpassung
+        const baseWidth = 1400; 
+        const baseHeight = 900; 
         
         canvas.width = baseWidth * scale;
         canvas.height = baseHeight * scale;
@@ -167,37 +216,47 @@ window.CPR.Export = (function() {
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, baseWidth, baseHeight);
 
-        ctx.fillStyle = '#64748b'; ctx.font = 'bold 16px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText("GRAFISCHES ZEITLINIEN-GRID (COMPLIANCE & LEITLINIEN AUDIT)", baseWidth / 2, 35);
+        // Header & Legende
+        ctx.fillStyle = '#64748b'; ctx.font = 'bold 20px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(`GRAFISCHES ZEITLINIEN-GRID (Seite ${pageIndex + 1})`, baseWidth / 2, 40);
         
-        ctx.fillStyle = '#334155'; ctx.font = 'bold 10px Arial';
-        const legendText = "▶ START  |  ❤️ ROSC  |  ⚡ SCHOCKBAR  |  🚫⚡ NICHT SCHOCKBAR  |  SCHOCK (Joule in Rot)  |  💉 ADRENALIN  |  💊 AMIODARON  |  🫁 ATEMWEG  |  🩸 ZUGANG  |  CPR PAUSE (Roter Balken)";
-        ctx.fillText(legendText, baseWidth / 2, 60);
+        ctx.fillStyle = '#334155'; ctx.font = 'bold 12px Arial';
+        const legendText = "▶ START  |  ❤️ ROSC  |  ⚡ SCHOCKBAR  |  🚫⚡ NICHT SCHOCKBAR  |  SCHOCK (Joule in Rot)  |  💉 ADRENALIN  |  💊 AMIO  |  🫁 ATEMWEG  |  🩸 ZUGANG  |  CPR PAUSE (Roter Balken)";
+        ctx.fillText(legendText, baseWidth / 2, 70);
 
         const paddingX = 80;
         const usableWidth = baseWidth - (paddingX * 2);
-        let currentDrawSec = 0;
+        
+        // 5 Linien, je 4 Minuten (240s)
+        const cycleDuration = 240; 
+        const startSecForPage = pageIndex * 5 * cycleDuration;
 
-        for (let i = 0; i < totalCycles; i++) {
+        for (let i = 0; i < 5; i++) {
+            const currentDrawSec = startSecForPage + (i * cycleDuration);
             const cycleEndSec = currentDrawSec + cycleDuration;
-            const lineY = 150 + (i * rowHeight);
+            const lineY = 160 + (i * 150); // Abstand zwischen den 5 Linien
 
+            // Hauptlinie
             ctx.beginPath(); ctx.moveTo(paddingX, lineY); ctx.lineTo(baseWidth - paddingX, lineY);
             ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.stroke();
             
-            for (let t = 15; t < 120; t += 15) {
+            // 🌟 15-SEKUNDEN LINEAL (4 Min = 240s = 16 Ticks)
+            for (let t = 15; t < cycleDuration; t += 15) {
                 const tickSec = currentDrawSec + t;
-                const pct = t / 120;
+                const pct = t / cycleDuration;
                 const xTick = paddingX + pct * usableWidth;
-                let tickH = (t === 60) ? 10 : 4;
+                let tickH = (t % 60 === 0) ? 14 : 6;
                 
                 ctx.beginPath(); ctx.moveTo(xTick, lineY - tickH/2); ctx.lineTo(xTick, lineY + tickH/2);
                 ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1.5; ctx.stroke();
 
-                ctx.fillStyle = '#94a3b8'; ctx.font = 'bold 9px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-                ctx.fillText(window.CPR.Utils.formatTime(tickSec), xTick, lineY + 6);
+                if (t % 60 === 0) {
+                    ctx.fillStyle = '#94a3b8'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+                    ctx.fillText(window.CPR.Utils.formatTime(tickSec), xTick, lineY + 10);
+                }
             }
             
+            // 🌟 CPR PAUSEN 🌟
             pauses.forEach(p => {
                 const pStart = Math.max(p.start, currentDrawSec);
                 const pEnd = Math.min(p.end, cycleEndSec);
@@ -209,21 +268,23 @@ window.CPR.Export = (function() {
                     const pWidth = xEnd - xStart;
 
                     ctx.fillStyle = '#ef4444'; 
-                    ctx.fillRect(xStart, lineY - 4, pWidth, 8);
+                    ctx.fillRect(xStart, lineY - 5, pWidth, 10);
 
-                    if (pWidth > 15) {
-                        ctx.fillStyle = '#ffffff'; ctx.font = 'bold 9px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                    if (pWidth > 20) {
+                        ctx.fillStyle = '#ffffff'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
                         ctx.fillText(p.duration + 's', xStart + pWidth/2, lineY);
                     }
                 }
             });
 
-            ctx.fillStyle = '#94a3b8'; ctx.font = 'bold 12px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-            ctx.fillRect(paddingX - 1, lineY - 6, 2, 12);
-            ctx.fillText(window.CPR.Utils.formatTime(currentDrawSec), paddingX, lineY - 8);
-            ctx.fillRect(paddingX + usableWidth - 1, lineY - 6, 2, 12);
-            ctx.fillText(window.CPR.Utils.formatTime(cycleEndSec), paddingX + usableWidth, lineY - 8);
+            // Start/Ende Labels der Zeile
+            ctx.fillStyle = '#94a3b8'; ctx.font = 'bold 14px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+            ctx.fillRect(paddingX - 1, lineY - 8, 2, 16);
+            ctx.fillText(window.CPR.Utils.formatTime(currentDrawSec), paddingX, lineY - 12);
+            ctx.fillRect(paddingX + usableWidth - 1, lineY - 8, 2, 16);
+            ctx.fillText(window.CPR.Utils.formatTime(cycleEndSec), paddingX + usableWidth, lineY - 12);
 
+            // Events einzeichnen
             const cycleEvents = events.filter(e => e.secondsFromStart >= currentDrawSec && e.secondsFromStart < cycleEndSec);
 
             cycleEvents.forEach((ev, index) => {
@@ -231,9 +292,9 @@ window.CPR.Export = (function() {
                 const pct = secInCycle / cycleDuration;
                 const x = paddingX + (pct * usableWidth);
 
-                const yOffsets = [12, -12, 28, -28, 44, -44];
+                const yOffsets = [15, -15, 35, -35, 55, -55]; // Starke Spreizung wegen 4 Minuten Dichte
                 const yOff = yOffsets[index % yOffsets.length];
-                const boxHeight = 26;
+                const boxHeight = 28;
                 const boxY = lineY + yOff - boxHeight/2;
 
                 const actionText = ev.action.length > 35 ? ev.action.substring(0, 35) + '...' : ev.action;
@@ -257,158 +318,152 @@ window.CPR.Export = (function() {
                 
                 ctx.strokeStyle = borderColor; ctx.lineWidth = 2; ctx.stroke();
 
-                ctx.fillStyle = '#E3000F'; ctx.font = 'bold 11px monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+                ctx.fillStyle = '#E3000F'; ctx.font = 'bold 12px monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
                 ctx.fillText(`[${ev.timeStr}]`, x - boxHalf + 10, boxY + boxHeight/2);
-                ctx.fillStyle = '#334155'; ctx.font = 'bold 11px Arial';
+                ctx.fillStyle = '#334155'; ctx.font = 'bold 12px Arial';
                 ctx.fillText(`${ev.iconData.icon} ${actionText}`, x - boxHalf + 10 + timeWidth + 5, boxY + boxHeight/2);
 
                 ctx.beginPath(); ctx.arc(x, lineY, 4, 0, 2 * Math.PI); ctx.fillStyle = '#334155'; ctx.fill();
             });
-            
-            currentDrawSec = cycleEndSec;
         }
-
         return canvas;
     }
 
-    // --- 5. PDF GENERIERUNG (Der Bulletproof Overlay Fix) ---
+    // --- 4. NATIVE PDF GENERIERUNG (Der jsPDF God Mode) ---
     function generatePdfExport() {
         const { AppState, Utils } = window.CPR;
         if (!AppState || !AppState.protocolData || AppState.protocolData.length === 0) { alert("Das Protokoll ist leer."); return; }
 
+        if (!window.jspdf) {
+            alert("Fehler: jsPDF Bibliothek nicht gefunden. Bitte index.html prüfen.");
+            return;
+        }
+
+        const btnPdf = document.getElementById('btn-run-pdf-export');
+        const origContent = btnPdf ? btnPdf.innerHTML : '';
+        if (btnPdf) btnPdf.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> ERSTELLE PDF...';
+
         const btnExportShort = document.getElementById('btn-export-short');
         const isSummary = btnExportShort && btnExportShort.classList.contains('bg-white');
-
+        
         const now = new Date();
-        const dateStr = now.toLocaleDateString('de-DE').replace(/\./g, '-');
+        const dateStr = now.toLocaleDateString('de-DE');
         const timeStr = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }).replace(':', '');
-        const filename = `CPR_Protokoll_${dateStr}_${timeStr}.pdf`;
+        const filename = `CPR_Protokoll_${dateStr.replace(/\./g, '-')}_${timeStr}.pdf`;
 
-        // 1. Export Modal schließen, damit es nicht im Weg ist
-        const em = document.getElementById('export-modal');
-        if (em) em.classList.replace('flex', 'hidden');
+        // Native jsPDF Engine initialisieren
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+        
+        const facts = extractSbarFacts();
 
-        // 2. Ein Vollbild-Ladebildschirm aufbauen (verdeckt unsere PDF Erzeugung)
-        const overlay = document.createElement('div');
-        overlay.style.position = 'fixed';
-        overlay.style.top = '0';
-        overlay.style.left = '0';
-        overlay.style.width = '100vw';
-        overlay.style.height = '100vh';
-        overlay.style.backgroundColor = '#f8fafc';
-        overlay.style.zIndex = '999999'; // Ganz nach vorne!
-        overlay.style.display = 'flex';
-        overlay.style.flexDirection = 'column';
-        overlay.style.alignItems = 'center';
-        overlay.style.justifyContent = 'center';
-        overlay.innerHTML = `
-            <div style="width: 50px; height: 50px; border: 5px solid #e2e8f0; border-top: 5px solid #E3000F; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px;"></div>
-            <h2 style="font-family: Arial, sans-serif; color: #1e293b; font-size: 20px; font-weight: bold; margin: 0;">Erstelle PDF...</h2>
-            <p style="font-family: Arial, sans-serif; color: #64748b; font-size: 14px; margin-top: 5px;">Bitte warten</p>
-            <style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>
-        `;
-        document.body.appendChild(overlay);
+        // ----------------------------------------------------
+        // SEITE 1: HEADER & SBAR (HOCHFORMAT)
+        // ----------------------------------------------------
+        doc.setFontSize(22); doc.setTextColor(15, 23, 42); doc.setFont("helvetica", "bold");
+        doc.text("REANIMATIONSPROTOKOLL", 15, 20);
+        
+        doc.setFontSize(10); doc.setTextColor(100, 116, 139); doc.setFont("helvetica", "normal");
+        doc.text(`MODUS: ${isSummary ? 'SCHOCKRAUM ÜBERGABE' : 'DEBRIEFING & AUDIT'}`, 15, 26);
+        
+        doc.setFontSize(10); doc.setFont("helvetica", "normal"); doc.setTextColor(100, 116, 139);
+        doc.text(`Datum: ${dateStr}`, 195, 20, {align: 'right'});
+        doc.text(`Einsatzbeginn: ${AppState.startTime || '--:--'}`, 195, 26, {align: 'right'});
+        
+        doc.setDrawColor(227, 0, 15); doc.setLineWidth(1); doc.line(15, 30, 195, 30);
+        
+        drawSbarNative(doc, facts);
 
-        // 3. Den PDF Container erstellen (liegt ZWISCHEN Ladebildschirm und App)
-        // Dadurch zwingen wir Android, ihn 100% zu rendern!
-        const container = document.createElement('div');
-        container.style.position = 'absolute'; 
-        container.style.left = '0'; 
-        container.style.top = '0';
-        container.style.zIndex = '999998'; // Unterm Overlay, aber über der App
-        container.style.width = '800px'; 
-        container.style.padding = '30px';
-        container.style.fontFamily = 'Arial, sans-serif'; 
-        container.style.color = '#1e293b'; 
-        container.style.backgroundColor = '#ffffff';
-
-        let html = `
-            <table style="width: 100%; border-bottom: 3px solid #E3000F; padding-bottom: 10px; margin-bottom: 20px;">
-                <tr>
-                    <td style="vertical-align: bottom;">
-                        <h1 style="margin: 0; font-size: 26px; color: #0f172a;">REANIMATIONSPROTOKOLL</h1>
-                        <p style="margin: 5px 0 0 0; color: #64748b; font-size: 12px; font-weight: bold;">GENERIERT DURCH CPR ASSIST | MODUS: ${isSummary ? 'SCHOCKRAUM ÜBERGABE' : 'DEBRIEFING & AUDIT'}</p>
-                    </td>
-                    <td style="vertical-align: bottom; text-align: right; color: #64748b; font-size: 14px;">
-                        <strong>Datum:</strong> ${now.toLocaleDateString()}<br>
-                        <strong>Einsatzbeginn:</strong> ${AppState.startTime || '--:--'}
-                    </td>
-                </tr>
-            </table>
-        `;
-
-        html += generateSbarHtml();
+        doc.setFontSize(8); doc.setTextColor(148, 163, 184); doc.setFont("helvetica", "normal");
+        doc.text("Dieses Protokoll wurde maschinell durch CPR Assist erstellt. Alle Angaben sind fachlich zu prüfen.", 105, 285, {align: 'center'});
 
         if (!isSummary) {
             const data = AppState.protocolData;
-            const canvas = createTimelineCanvas(data);
-            const imgData = canvas.toDataURL('image/png');
             
-            // Native Umbrüche (.page-break) anstelle von div margins
-            html += `<div class="page-break" style="page-break-before: always; clear: both; height: 0;"></div>`;
-            html += `<div style="text-align: center; margin-top: 20px;"><img src="${imgData}" style="max-width: 100%; height: auto; display: inline-block;"></div>`;
+            // ----------------------------------------------------
+            // SEITE 2+: ZEITLINIE (QUERFORMAT, 5 Linien à 4 Min)
+            // ----------------------------------------------------
+            const maxSec = data.length > 0 ? data[data.length - 1].secondsFromStart : 0;
+            const pauses = extractPauses(data, maxSec);
+            const totalPagesTimeline = Math.max(1, Math.ceil(maxSec / (5 * 240))); // 1200s (20 Min) pro Seite
 
-            html += `<div class="page-break" style="page-break-before: always; clear: both; height: 0;"></div>`;
-            html += `
-                <div style="padding-top: 20px;">
-                    <h3 style="margin: 0 0 10px 0; font-size: 14px; color: #64748b; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">MINUTENGENAUE CHRONOLOGIE (LISTENPROTOKOLL)</h3>
-                    <table style="width: 100%; border-collapse: collapse; font-size: 12px; border: 1px solid #e2e8f0;">
-                        <thead>
-                            <tr style="background: #f1f5f9; text-align: left;">
-                                <th style="padding: 8px 10px; border-bottom: 2px solid #cbd5e1; width: 80px;">Uhrzeit</th>
-                                <th style="padding: 8px 10px; border-bottom: 2px solid #cbd5e1; width: 70px;">Dauer</th>
-                                <th style="padding: 8px 10px; border-bottom: 2px solid #cbd5e1;">Aktion / Maßnahme</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-            `;
+            for (let p = 0; p < totalPagesTimeline; p++) {
+                doc.addPage('a4', 'landscape');
+                const canvas = createTimelineCanvasChunk(data, pauses, p);
+                const imgData = canvas.toDataURL('image/png');
+                
+                // Canvas einpassen (A4 Querformat: 297x210mm)
+                doc.addImage(imgData, 'PNG', 10, 10, 277, 190);
+                
+                doc.setFontSize(8); doc.setTextColor(148, 163, 184); doc.setFont("helvetica", "normal");
+                doc.text("Generiert durch CPR Assist", 148.5, 205, {align: 'center'});
+            }
 
-            data.forEach((item, index) => {
-                const bg = index % 2 === 0 ? '#ffffff' : '#f8fafc';
+            // ----------------------------------------------------
+            // SEITE X+: CHRONOLOGIE LISTE (HOCHFORMAT)
+            // ----------------------------------------------------
+            doc.addPage('a4', 'portrait');
+            let listY = 20;
+            
+            doc.setFontSize(14); doc.setTextColor(100, 116, 139); doc.setFont("helvetica", "bold");
+            doc.text("MINUTENGENAUE CHRONOLOGIE (LISTENPROTOKOLL)", 15, listY);
+            listY += 4;
+            doc.setDrawColor(226, 232, 240); doc.setLineWidth(0.5); doc.line(15, listY, 195, listY);
+            listY += 8;
+
+            // Tabellenkopf
+            doc.setFillColor(241, 245, 249); doc.rect(15, listY-6, 180, 10, 'F');
+            doc.setFontSize(10); doc.setTextColor(15, 23, 42); doc.setFont("helvetica", "bold");
+            doc.text("Uhrzeit", 20, listY);
+            doc.text("Dauer", 50, listY);
+            doc.text("Aktion / Maßnahme", 80, listY);
+            doc.line(15, listY+4, 195, listY+4);
+            listY += 10;
+
+            // Tabellen Inhalt
+            data.forEach(item => {
+                // Emojis filtern, da jsPDF diese in Helvetica nicht nativ drucken kann! 
                 const relTime = Utils.formatRelative(item.secondsFromStart);
-                let safeIcon = '🔹';
-                const iconData = getIconData(item.action);
-                if (iconData) safeIcon = iconData.isText ? iconData.icon : iconData.icon;
+                const plainAction = item.action.replace(/[\u1000-\uFFFF]+/g, '').trim(); 
+                
+                const splitText = doc.splitTextToSize(plainAction, 110);
+                const rowHeight = splitText.length * 5;
 
-                html += `
-                    <tr style="background: ${bg}; border-bottom: 1px solid #f1f5f9;">
-                        <td style="padding: 6px 10px; color: #64748b;">${item.time}</td>
-                        <td style="padding: 6px 10px; font-weight: bold; color: #E3000F;">${relTime}</td>
-                        <td style="padding: 6px 10px; font-weight: bold; color: #334155;">${safeIcon} ${item.action}</td>
-                    </tr>
-                `;
+                // Seitenumbruch, wenn Platz nicht reicht
+                if (listY + rowHeight > 275) {
+                    doc.addPage('a4', 'portrait');
+                    listY = 20;
+                    doc.setFillColor(241, 245, 249); doc.rect(15, listY-6, 180, 10, 'F');
+                    doc.setFontSize(10); doc.setTextColor(15, 23, 42); doc.setFont("helvetica", "bold");
+                    doc.text("Uhrzeit", 20, listY); doc.text("Dauer", 50, listY); doc.text("Aktion / Maßnahme", 80, listY);
+                    doc.line(15, listY+4, 195, listY+4);
+                    listY += 10;
+                }
+
+                doc.setFontSize(9); doc.setFont("helvetica", "normal");
+                doc.setTextColor(100, 116, 139); doc.text(item.time, 20, listY);
+                doc.setTextColor(227, 0, 15); doc.setFont("helvetica", "bold"); doc.text(relTime, 50, listY);
+                doc.setTextColor(51, 65, 85); doc.text(splitText, 80, listY);
+                
+                listY += rowHeight + 3;
+                doc.setDrawColor(241, 245, 249); doc.setLineWidth(0.2); doc.line(15, listY-2, 195, listY-2);
             });
-            html += `</tbody></table></div>`;
+            
+            doc.setFontSize(8); doc.setTextColor(148, 163, 184); doc.setFont("helvetica", "normal");
+            doc.text("Dieses Protokoll wurde maschinell durch CPR Assist erstellt. Alle Angaben sind fachlich zu prüfen.", 105, 285, {align: 'center'});
         }
 
-        html += `<div style="margin-top: 30px; font-size: 10px; color: #94a3b8; text-align: center;">Dieses Protokoll wurde maschinell durch CPR Assist erstellt. Alle Angaben sind fachlich zu prüfen.</div>`;
+        // PDF Native Speichern!
+        try {
+            doc.save(filename);
+            if (Utils.vibrate) Utils.vibrate(30);
+        } catch (e) {
+            alert("Fehler beim Erstellen des PDFs.");
+        }
         
-        container.innerHTML = html;
-        document.body.appendChild(container);
-
-        // 4. Strikte PDF-Settings mit CSS-Pagebreaks
-        const opt = { 
-            margin: 10, 
-            filename: filename, 
-            image: { type: 'jpeg', quality: 0.98 }, 
-            html2canvas: { scale: 2, useCORS: true, windowWidth: 800 }, 
-            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-            pagebreak: { mode: 'css', before: '.page-break' } 
-        };
-
-        // 5. Kurze Atempause für Android, um die Box zu rendern (150ms)
-        setTimeout(() => {
-            html2pdf().set(opt).from(container).save().then(() => {
-                // Aufräumen
-                document.body.removeChild(container);
-                document.body.removeChild(overlay);
-                if (Utils.vibrate) Utils.vibrate(30);
-            }).catch(err => {
-                document.body.removeChild(container);
-                document.body.removeChild(overlay);
-                alert("Fehler beim PDF Export: " + err.message);
-            });
-        }, 150);
+        if (btnPdf) btnPdf.innerHTML = origContent;
+        const em = document.getElementById('export-modal');
+        if (em) em.classList.replace('flex', 'hidden');
     }
 
     // --- 6. TEXT EXPORT (Clipboard) ---
@@ -418,20 +473,20 @@ window.CPR.Export = (function() {
         
         const btnExportShort = document.getElementById('btn-export-short');
         const isSummary = btnExportShort && btnExportShort.classList.contains('bg-white');
-        const { ageStr, totalSec, ccf, adrTotal, amioTotal, aData, sampStr, hitsLogs, state, adrCount, amioCount } = extractSbarFacts();
+        const { ageStr, totalSec, ccf, adrTotal, amioTotal, aData, sampStr, hitsArr, state, adrCount, amioCount } = extractSbarFacts();
         
         let text = "🚨 REANIMATIONSPROTOKOLL - " + (isSummary ? "ÜBERGABE (SBAR)" : "DEBRIEFING") + "\n";
         text += "Datum: " + new Date().toLocaleDateString() + " | Beginn: " + (AppState.startTime || '--:--') + "\n\n";
         text += "--- [S] SITUATION ---\nPatient: " + ageStr + "\nStatus: " + (state.state === 'ROSC_ACTIVE' ? 'ROSC' : 'Laufende CPR') + "\nDauer: " + Utils.formatTime(totalSec) + " Min\n\n";
         text += "--- [B] BACKGROUND ---\nBeobachtet: " + (aData.beobachtet || '?') + " | Laien-REA: " + (aData.laienrea || '?') + " | Brustschmerz: " + (aData.brustschmerz || '?') + "\n";
-        if (sampStr.length > 0) text += sampStr.map(s => s.replace(/<[^>]*>?/gm, '')).join('\n') + "\n";
+        if (sampStr.length > 0) text += sampStr.join('\n') + "\n";
         text += "\n--- [A] ASSESSMENT ---\nCPR Qualität (CCF): " + ccf + "%\n";
-        if (hitsLogs.length > 0) hitsLogs.forEach(h => text += "- " + h.action.replace('HITS: ', '') + "\n"); else text += "Keine HITS erfasst.\n";
+        if (hitsArr.length > 0) hitsArr.forEach(h => text += "- " + h + "\n"); else text += "Keine HITS erfasst.\n";
         text += "\n--- [R] RESPONSE ---\nAtemweg: " + (AppState.airwayLabel || 'Nicht dok.') + "\nZugang: " + (AppState.zugangLabel || 'Nicht dok.') + "\nSchocks: " + (AppState.shockCount || 0) + "x abgegeben\nAdrenalin: " + adrTotal + " (" + adrCount + " Gaben)\nAmiodaron: " + amioTotal + " (" + amioCount + " Gaben)\n\n";
 
         if (!isSummary) {
             text += "--- CHRONOLOGIE ---\n";
-            AppState.protocolData.forEach(item => { text += `[+${Utils.formatTime(item.secondsFromStart)}] ${item.time} | ${item.action}\n`; });
+            AppState.protocolData.forEach(item => { text += `[+${Utils.formatTime(item.secondsFromStart)}] ${item.time} | ${item.action.replace(/[\u1000-\uFFFF]+/g, '').trim()}\n`; });
         }
         text += "\n-- Generiert durch CPR Assist --";
 
