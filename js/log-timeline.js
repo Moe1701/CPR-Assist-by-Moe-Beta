@@ -1,8 +1,8 @@
 /**
- * CPR Assist - Log Timeline Modul (V54 - Data Extraction Fix)
- * - BUGFIX: ROSC-Zeit und Abbruchgrund werden jetzt stur aus den Log-Strings gelesen (ignoriert den Timer-State).
- * - BUGFIX: CPR-Pausen nutzen dynamisches Wort-Matching ("pausiert", "stop", "Analyse").
- * - BUGFIX: Die rote Live-Linie stoppt nicht mehr, wenn die CPR pausiert wird.
+ * CPR Assist - Log Timeline Modul (V55 - Data Extraction & Live Marker Fix)
+ * - BUGFIX: Live-Marker stoppt nicht mehr am Ende eines 2-Min-Blocks, sondern spawnt nahtlos im nächsten.
+ * - BUGFIX: CPR Pausen Detektor ist nun viel robuster (erkennt auch 'Analyse' etc.).
+ * - BUGFIX: ROSC-Zeit und Abbruchgrund werden garantiert abgedruckt.
  */
 
 window.CPR = window.CPR || {};
@@ -11,7 +11,7 @@ window.CPR.LogTimeline = (function() {
     let currentView = 'list'; 
     let liveMarkerInterval = null;
     
-    // --- 1. ICON LOGIK ---
+    // --- 1. ICON & JOULE LOGIK ---
     function getIconData(txt) {
         if (!txt) return null;
         const t = txt.toLowerCase();
@@ -46,18 +46,16 @@ window.CPR.LogTimeline = (function() {
         return { icon: '🔹', type: 'default', color: 'text-slate-400', bg: 'bg-slate-100' };
     }
 
-    // --- PAUSEN EXTRAKTOR (Robustes Wording) ---
+    // --- PAUSEN EXTRAKTOR (Robustes Matching) ---
     function extractPauses(data, currentAppSec) {
         let pauses = [];
         let currentStart = null;
         data.forEach(d => {
             const t = d.action.toLowerCase();
-            // Starte Pause bei Kompression-Stop oder Rhythmusanalyse
-            if ( ((t.includes('kompression') || t.includes('cpr')) && (t.includes('paus') || t.includes('stop') || t.includes('unterbroch'))) || t.includes('analyse') || t.includes('schockbar') ) {
+            if (t.includes('pause') || t.includes('stop') || t.includes('analyse') || t.includes('schockbar') || t.includes('unterbroch')) {
                 if (currentStart === null) currentStart = d.secondsFromStart;
             }
-            // Beende Pause bei Fortsetzen
-            else if ((t.includes('kompression') || t.includes('cpr')) && (t.includes('fortgesetzt') || t.includes('start') || t.includes('weiter'))) {
+            if (t.includes('fortgesetzt') || t.includes('weiter') || t.includes('start')) {
                 if (currentStart !== null) {
                     pauses.push({ start: currentStart, end: d.secondsFromStart, duration: d.secondsFromStart - currentStart });
                     currentStart = null;
@@ -70,7 +68,7 @@ window.CPR.LogTimeline = (function() {
         return pauses;
     }
 
-    // --- 2. DATA HARVESTER (Log-basierte Statuserkennung) ---
+    // --- 2. DATA HARVESTER ---
     function extractSbarFacts() {
         const state = window.CPR.AppState || {};
         const data = state.protocolData || [];
@@ -95,10 +93,10 @@ window.CPR.LogTimeline = (function() {
         const hitsLogs = data.filter(d => d.action.includes('HITS:'));
         const hitsHtml = hitsLogs.map(h => `<li class="mb-1">${h.action.replace('HITS: ', '')}</li>`).join('');
 
-        // 🌟 END-STATUS & ROSC-ZEIT (Unzerstörbar aus dem Logbuch gelesen) 🌟
+        // 🌟 END-STATUS & ROSC-ZEIT (Sichere Extraktion) 🌟
         let endStatus = 'Laufende CPR';
         let timeToRosc = null;
-        let abbruchReason = null;
+        let abbruchReason = "";
 
         data.forEach(d => {
             const t = d.action.toLowerCase();
@@ -109,10 +107,17 @@ window.CPR.LogTimeline = (function() {
                 endStatus = 'Laufende CPR';
             } else if (t.includes('abbruch') || t.includes('beendet')) {
                 endStatus = 'Abbruch';
-                const parts = d.action.split(':');
-                if (parts.length > 1) abbruchReason = parts[1].trim();
+                const splitChar = t.includes(':') ? ':' : (t.includes('-') ? '-' : null);
+                if (splitChar) {
+                    const parts = d.action.split(splitChar);
+                    if (parts.length > 1) abbruchReason = parts[1].trim();
+                }
             }
         });
+
+        // Fallbacks, falls String zerschnitten war
+        if (endStatus === 'ROSC' && timeToRosc === null) timeToRosc = totalSec;
+        if (endStatus === 'Abbruch' && !abbruchReason) abbruchReason = "Teamentscheidung / Unbekannt";
 
         return { ageStr, totalSec, ccf, adrCount, adrTotal, amioCount, amioTotal, aData, sampStr, hitsLogs, hitsHtml, state, data, endStatus, timeToRosc, abbruchReason };
     }
@@ -127,10 +132,10 @@ window.CPR.LogTimeline = (function() {
         
         if (endStatus === 'ROSC') {
             statusColor = 'text-emerald-600';
-            if (timeToRosc !== null) extraInfoHtml = `<span class="text-[10px] font-black text-emerald-700 bg-emerald-100 border border-emerald-200 px-2 py-1 rounded-lg">Zeit bis ROSC: ${window.CPR.Utils.formatTime(timeToRosc)}</span>`;
+            extraInfoHtml = `<span class="text-[10px] font-black text-emerald-700 bg-emerald-100 border border-emerald-200 px-2 py-1 rounded-lg">Zeit bis ROSC: ${window.CPR.Utils.formatTime(timeToRosc)} Min</span>`;
         } else if (endStatus === 'Abbruch') {
             statusColor = 'text-slate-800';
-            if (abbruchReason) extraInfoHtml = `<span class="text-[9px] font-black text-slate-600 bg-slate-200 border border-slate-300 px-2 py-1 rounded-lg truncate max-w-[140px] text-right inline-block">Grund: ${abbruchReason}</span>`;
+            extraInfoHtml = `<span class="text-[9px] font-black text-slate-600 bg-slate-200 border border-slate-300 px-2 py-1 rounded-lg truncate max-w-[140px] text-right inline-block">Grund: ${abbruchReason}</span>`;
         }
         
         return `
@@ -340,7 +345,7 @@ window.CPR.LogTimeline = (function() {
                     
                     <div class="absolute inset-y-0 left-8 right-8 pointer-events-none">
                         <!-- Mittellinie (Track) -->
-                        <div class="absolute top-1/2 left-0 right-0 h-1 bg-slate-100 rounded-full -translate-y-1/2 shadow-inner"></div>
+                        <div class="absolute top-1/2 left-0 right-0 h-1 bg-slate-100 rounded-full -translate-y-1/2 shadow-inner z-0"></div>
             `;
 
             // 15s LINEAL
@@ -349,11 +354,11 @@ window.CPR.LogTimeline = (function() {
                 const pct = (t / 120) * 100;
                 const isHalf = t === 60;
                 const tickH = isHalf ? 'h-4' : 'h-2';
-                html += `<div class="absolute top-1/2 w-px ${tickH} bg-slate-300 -translate-y-1/2 -translate-x-1/2" style="left: ${pct}%;"></div>`;
-                html += `<div class="absolute top-1/2 mt-3.5 text-[6.5px] font-black text-slate-400 -translate-y-1/2 -translate-x-1/2" style="left: ${pct}%;">${window.CPR.Utils.formatTime(tickSec)}</div>`;
+                html += `<div class="absolute top-1/2 w-px ${tickH} bg-slate-300 -translate-y-1/2 -translate-x-1/2 z-10" style="left: ${pct}%;"></div>`;
+                html += `<div class="absolute top-1/2 mt-3.5 text-[6.5px] font-black text-slate-400 -translate-y-1/2 -translate-x-1/2 z-10" style="left: ${pct}%;">${window.CPR.Utils.formatTime(tickSec)}</div>`;
             }
 
-            // CPR PAUSEN
+            // CPR PAUSEN (Z-Index über Track, aber unter Icons)
             pauses.forEach(p => {
                 const pStart = Math.max(p.start, currentStartSec);
                 const pEnd = Math.min(p.end, cycleEndSec);
@@ -362,7 +367,7 @@ window.CPR.LogTimeline = (function() {
                     const pctEnd = ((pEnd - currentStartSec) / cycleDuration) * 100;
                     const widthPct = pctEnd - pctStart;
                     html += `
-                        <div class="absolute top-1/2 h-2.5 bg-red-500 rounded-sm flex items-center justify-center -translate-y-1/2 z-0"
+                        <div class="absolute top-1/2 h-2.5 bg-red-500 rounded-sm flex items-center justify-center -translate-y-1/2 z-[5]"
                              style="left: ${pctStart}%; width: ${widthPct}%;">
                              ${widthPct > 4 ? `<span class="text-[6px] font-black text-white shadow-sm">${p.duration}s</span>` : ''}
                         </div>
@@ -370,11 +375,11 @@ window.CPR.LogTimeline = (function() {
                 }
             });
 
-            // LIVE MARKER (Stoppt jetzt NICHT mehr bei Pause!)
+            // LIVE MARKER (Stoppt jetzt NICHT mehr!)
             if (isActiveBlock) {
                 const markerPct = ((currentAppSec - currentStartSec) / cycleDuration) * 100;
                 html += `
-                        <div class="live-time-marker absolute top-0 bottom-0 w-[2px] bg-red-500 z-[5] shadow-[0_0_8px_rgba(239,68,68,0.8)]" 
+                        <div class="live-time-marker absolute top-0 bottom-0 w-[2px] bg-red-500 z-[15] shadow-[0_0_8px_rgba(239,68,68,0.8)]" 
                              data-start="${currentStartSec}" data-end="${cycleEndSec}" 
                              style="left: ${markerPct}%;">
                              <div class="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-red-500 shadow-sm"></div>
@@ -396,8 +401,8 @@ window.CPR.LogTimeline = (function() {
                 const textClass = ev.iconData.isText ? 'text-[7px] font-black tracking-tighter' : 'text-[11px]';
 
                 html += `
-                        <div class="absolute w-px bg-slate-300 -translate-x-1/2 ${linePosClass}" style="left: ${pct}%; height: ${lineH}px;"></div>
-                        <div class="absolute -translate-x-1/2 flex flex-col items-center" style="left: ${pct}%; top: calc(50% + ${yOff}px - 14px); z-index: ${20 + idx};">
+                        <div class="absolute w-px bg-slate-300 -translate-x-1/2 ${linePosClass} z-20" style="left: ${pct}%; height: ${lineH}px;"></div>
+                        <div class="absolute -translate-x-1/2 flex flex-col items-center z-20" style="left: ${pct}%; top: calc(50% + ${yOff}px - 14px); z-index: ${20 + idx};">
                             <div class="w-7 h-7 rounded-full ${ev.iconData.bg} border-2 border-white shadow-md flex items-center justify-center ${textClass} ${ev.iconData.color}">
                                 ${iconContent}
                             </div>
@@ -413,22 +418,30 @@ window.CPR.LogTimeline = (function() {
         return html;
     }
 
-    // --- LIVE MARKER UPDATER ---
+    // --- LIVE MARKER UPDATER (Nahtloser Block-Wechsel) ---
     function updateLiveMarker() {
         if (currentView !== 'timeline') return;
         const state = window.CPR.AppState;
-        if (!state) return; // Die Sperre "if(!state.isRunning) return" wurde entfernt!
+        if (!state) return; 
 
         const currentAppSec = state.totalSeconds || 0;
-        const markers = document.querySelectorAll('.live-time-marker');
         
+        const currentBlock = Math.floor(currentAppSec / 120);
+        if (window._lastRenderedBlock === undefined) window._lastRenderedBlock = currentBlock;
+        
+        // Zwingt das Grid zum Neu-Rendern, wenn wir die 120s Grenze überschreiten (spawnt den Marker in der neuen Box)
+        if (currentBlock !== window._lastRenderedBlock) {
+            window._lastRenderedBlock = currentBlock;
+            renderCurrentView();
+        }
+
+        const markers = document.querySelectorAll('.live-time-marker');
         markers.forEach(marker => {
             const blockStart = parseInt(marker.dataset.start);
             const blockEnd = parseInt(marker.dataset.end);
             if (currentAppSec >= blockStart && currentAppSec <= blockEnd) {
                 const pct = ((currentAppSec - blockStart) / 120) * 100;
                 marker.style.left = `${pct}%`;
-                if (currentAppSec === blockStart && currentAppSec > 0) renderCurrentView();
             }
         });
     }
