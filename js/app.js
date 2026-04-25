@@ -206,6 +206,18 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    function showMainInterface() {
+        const ab = document.getElementById('btn-airway');
+        const cb = document.getElementById('btn-cpr');
+        if (ab) ab.style.opacity = '1';
+        if (cb) cb.style.opacity = '1';
+        
+        // FIX: Funktionsname korrigiert von updateModeSlider auf updateCprModeUI
+        if(UI && typeof UI.updateCprModeUI === 'function') UI.updateCprModeUI();
+        
+        if(window.CPR.MedsButton && typeof window.CPR.MedsButton.init === 'function') window.CPR.MedsButton.init();
+    }
+
     window.CPR.onBeat = function() {
         if (!AppState.isCompressing || AppState.isRunning === false) return;
         
@@ -492,7 +504,11 @@ document.addEventListener('DOMContentLoaded', function() {
         addClick('btn-start-adult', () => {
             if (AudioEngine && typeof AudioEngine.init === 'function') AudioEngine.init();
             Utils.vibrate(40); AppState.isPediatric = false; AppState.patientWeight = null; AppState.cprMode = '30:2'; AppState.compressionCount = 0; AppState.isRunning = true; AppState.isCompressing = true;
-            if(UI && typeof UI.updateCprModeUI === 'function') UI.updateCprModeUI(); if(UI && typeof UI.recalcMeds === 'function') UI.recalcMeds(); 
+            
+            // FIX: Funktionsname korrigiert
+            if(UI && typeof UI.updateCprModeUI === 'function') UI.updateCprModeUI(); 
+            if(UI && typeof UI.recalcMeds === 'function') UI.recalcMeds(); 
+            
             startMainTimer(); requestWakeLock(); addLogEntry("Start REA Erw."); navHelper('OB_COMPRESSIONS', 'view-ob-2', 'large'); updateCprUI();
         });
 
@@ -502,7 +518,12 @@ document.addEventListener('DOMContentLoaded', function() {
             if (AudioEngine && typeof AudioEngine.init === 'function') AudioEngine.init();
             Utils.vibrate(40); AppState.isPediatric = true; AppState.patientWeight = parseFloat(sKg.value); AppState.cprMode = '15:2'; AppState.compressionCount = 0; AppState.isRunning = true; AppState.isCompressing = true;
             document.getElementById('patient-setup-modal')?.classList.replace('flex', 'hidden');
-            if(UI && typeof UI.updatePediatricUI === 'function') UI.updatePediatricUI(); if(UI && typeof UI.updateCprModeUI === 'function') UI.updateCprModeUI(); if(UI && typeof UI.recalcMeds === 'function') UI.recalcMeds(); 
+            
+            // FIX: Funktionsnamen korrigiert
+            if(UI && typeof UI.updatePediatricUI === 'function') UI.updatePediatricUI(); 
+            if(UI && typeof UI.updateCprModeUI === 'function') UI.updateCprModeUI(); 
+            if(UI && typeof UI.recalcMeds === 'function') UI.recalcMeds(); 
+            
             startMainTimer(); requestWakeLock(); addLogEntry(`Start REA Kind (${AppState.patientWeight}kg)`); navHelper('OB_INITIAL_BREATHS', 'view-initial-breaths', 'large'); updateCprUI(); Utils.saveSession();
         });
 
@@ -510,7 +531,12 @@ document.addEventListener('DOMContentLoaded', function() {
             if (AudioEngine && typeof AudioEngine.init === 'function') AudioEngine.init();
             Utils.vibrate(40); AppState.isPediatric = true; AppState.patientWeight = null; AppState.cprMode = '15:2'; AppState.compressionCount = 0; AppState.isRunning = true; AppState.isCompressing = true;
             document.getElementById('patient-setup-modal')?.classList.replace('flex', 'hidden');
-            if(UI && typeof UI.updatePediatricUI === 'function') UI.updatePediatricUI(); if(UI && typeof UI.updateCprModeUI === 'function') UI.updateCprModeUI(); if(UI && typeof UI.recalcMeds === 'function') UI.recalcMeds(); 
+            
+            // FIX: Funktionsnamen korrigiert
+            if(UI && typeof UI.updatePediatricUI === 'function') UI.updatePediatricUI(); 
+            if(UI && typeof UI.updateCprModeUI === 'function') UI.updateCprModeUI(); 
+            if(UI && typeof UI.recalcMeds === 'function') UI.recalcMeds(); 
+            
             startMainTimer(); requestWakeLock(); addLogEntry("Start REA Kind (Gewicht unbekannt)"); navHelper('OB_INITIAL_BREATHS', 'view-initial-breaths', 'large'); updateCprUI(); Utils.saveSession();
         });
     }
@@ -521,7 +547,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         addClick('main-btn-area', (e) => {
             if (e.target.closest('button') || e.target.closest('select') || e.target.closest('input')) return;
-            if (Date.now() - (Globals.lastMenuAction || 0) < 500) return;
+            if (Date.now() - (Globals.lastViewSwitch || 0) < 500) return;
             
             if (AppState.state === 'OB_COMPRESSIONS') { 
                 Utils.vibrate(50); navHelper('OB_ANALYZE', 'view-ob-3', 'large'); 
@@ -721,7 +747,11 @@ document.addEventListener('DOMContentLoaded', function() {
             e.stopPropagation(); Utils.vibrate(30); const st = AppState.state || 'IDLE'; if (st === 'IDLE' || st === 'END' || st === 'ROSC_ACTIVE') return;
             if (AppState.cprMode === 'continuous') AppState.cprMode = AppState.isPediatric ? '15:2' : '30:2'; 
             else if (AppState.cprMode === '30:2' || AppState.cprMode === '15:2') AppState.cprMode = 'continuous'; 
-            if(UI && typeof UI.updateCprModeUI === 'function') UI.updateCprModeUI(); addLogEntry(`Modus manuell gewechselt: ${AppState.cprMode}`); updateCprUI();
+            
+            // FIX: Funktionsname korrigiert
+            if(UI && typeof UI.updateCprModeUI === 'function') UI.updateCprModeUI(); 
+            
+            addLogEntry(`Modus manuell gewechselt: ${AppState.cprMode}`); updateCprUI();
         });
     }
 
