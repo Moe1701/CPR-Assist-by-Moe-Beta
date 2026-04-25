@@ -1,10 +1,9 @@
 /**
- * CPR Assist - Log Timeline Modul (V41 - Medical Grade Pro)
- * - JOULE SCANNER: Erkennt "150 J" und rendert Text-Icons.
- * - RHYTHMUS FILTER: Schockbar (Gelb), Nicht Schockbar (Durchgestrichen).
- * - CPR PAUSEN: Werden als rote Segmente auf der Zeitlinie mit Dauer (z.B. 12s) gerendert.
- * - 15s LINEAL: Beschriftete Ticks (00:15, 00:30) auf der Mittelachse.
- * - LEGENDE: Vollständig ausgebaut und "Sticky".
+ * CPR Assist - Log Timeline Modul (V42 - Medical Dashboard & Legend Update)
+ * - MEDIZINISCHES UX-UPDATE: Der Übergabe-Screen (SBAR) wurde komplett neu designt!
+ * Anstelle von dicken Boxen gibt es nun lesbare "Klinik-Akten", bei denen
+ * nichts mehr gequetscht wird oder aus dem Bildschirm ragt.
+ * - LEGENDE: Amiodaron (💊) zur Legende hinzugefügt.
  */
 
 window.CPR = window.CPR || {};
@@ -82,7 +81,9 @@ window.CPR.LogTimeline = (function() {
         let sampStr = [];
         if (aData.sampler) {
             const sMap = {s:'Symptome', a:'Allergien', m:'Medikamente', p:'Vorerkrankungen', l:'Letzte Mahlzeit', e:'Ereignis', r:'Risikofaktoren'};
-            Object.keys(sMap).forEach(k => { if (aData.sampler[k]) sampStr.push(`<span class="text-[9px] font-black text-slate-400 uppercase mr-1">${sMap[k]}:</span> <span class="font-bold text-slate-700">${aData.sampler[k]}</span>`); });
+            Object.keys(sMap).forEach(k => { 
+                if (aData.sampler[k]) sampStr.push(`<span class="text-[10px] font-black text-slate-500 mr-1">${sMap[k]}:</span> <span class="font-bold text-slate-800">${aData.sampler[k]}</span>`); 
+            });
         }
         const hitsLogs = data.filter(d => d.action.includes('HITS:'));
         const hitsHtml = hitsLogs.map(h => `<li class="mb-1">${h.action.replace('HITS: ', '')}</li>`).join('');
@@ -90,60 +91,113 @@ window.CPR.LogTimeline = (function() {
         return { ageStr, totalSec, ccf, adrCount, adrTotal, amioCount, amioTotal, aData, sampStr, hitsLogs, hitsHtml, state, data };
     }
 
-    // --- 3. DOM RENDERING: SBAR DASHBOARD ---
+    // --- 3. DOM RENDERING: SBAR DASHBOARD (NEUES DESIGN) ---
     function renderSummary() {
         const { ageStr, totalSec, ccf, adrCount, adrTotal, amioCount, amioTotal, aData, sampStr, hitsLogs, hitsHtml, state } = extractSbarFacts();
         const ccfColor = ccf >= 80 ? 'text-emerald-500' : 'text-[#E3000F]';
+        
         return `
-            <div class="flex-1 overflow-y-auto p-4 flex flex-col gap-4 pb-24 custom-scrollbar bg-slate-100">
-                <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 relative overflow-hidden">
-                    <div class="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
-                    <h3 class="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-3 flex items-center gap-2"><i class="fa-solid fa-user-injured text-sm"></i> S - Situation</h3>
-                    <div class="grid grid-cols-3 gap-2">
-                        <div class="bg-slate-50 p-2 rounded-xl border border-slate-100 text-center flex flex-col justify-center"><span class="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Patient</span><span class="text-xs font-black text-slate-800 leading-tight">${ageStr}</span></div>
-                        <div class="bg-slate-50 p-2 rounded-xl border border-slate-100 text-center flex flex-col justify-center"><span class="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Dauer</span><span class="text-[15px] font-black text-slate-800 leading-tight">${window.CPR.Utils.formatTime(totalSec)}</span></div>
-                        <div class="bg-slate-50 p-2 rounded-xl border border-slate-100 text-center flex flex-col justify-center"><span class="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Status</span><span class="text-xs font-black ${state.state === 'ROSC_ACTIVE' ? 'text-emerald-600' : 'text-slate-800'} leading-tight">${state.state === 'ROSC_ACTIVE' ? 'ROSC' : 'Laufend'}</span></div>
+            <div class="flex-1 overflow-y-auto p-3 flex flex-col gap-3 pb-24 custom-scrollbar bg-slate-50">
+                
+                <!-- [S] SITUATION -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="bg-blue-50 px-3 py-2 border-b border-blue-100 flex items-center gap-2">
+                        <i class="fa-solid fa-user-injured text-blue-600"></i>
+                        <h3 class="text-[11px] font-black text-blue-800 uppercase tracking-widest">S - Situation</h3>
                     </div>
-                </div>
-
-                <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 relative overflow-hidden">
-                    <div class="absolute top-0 left-0 w-1 h-full bg-indigo-500"></div>
-                    <h3 class="text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-3 flex items-center gap-2"><i class="fa-solid fa-clipboard-list text-sm"></i> B - Background</h3>
-                    <div class="grid grid-cols-3 gap-2 mb-3">
-                        <div class="bg-slate-50 py-1.5 px-1 rounded-lg text-center border border-slate-100"><span class="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Beobachtet</span><span class="block text-[10px] font-black text-slate-700">${aData.beobachtet || '?'}</span></div>
-                        <div class="bg-slate-50 py-1.5 px-1 rounded-lg text-center border border-slate-100"><span class="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Laien-REA</span><span class="block text-[10px] font-black text-slate-700">${aData.laienrea || '?'}</span></div>
-                        <div class="bg-slate-50 py-1.5 px-1 rounded-lg text-center border border-slate-100"><span class="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Brustschmerz</span><span class="block text-[10px] font-black text-slate-700">${aData.brustschmerz || '?'}</span></div>
-                    </div>
-                    <div class="bg-slate-50 p-3 rounded-xl text-[11px] border border-slate-100">
-                        <strong class="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 border-b border-slate-200 pb-1">SAMPLER</strong>
-                        <div class="flex flex-col gap-1.5 mt-2">${sampStr.length > 0 ? sampStr.join('') : '<span class="italic text-slate-400 text-[10px]">Keine Daten erfasst</span>'}</div>
-                    </div>
-                </div>
-
-                <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 relative overflow-hidden">
-                    <div class="absolute top-0 left-0 w-1 h-full bg-amber-500"></div>
-                    <h3 class="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-3 flex items-center gap-2"><i class="fa-solid fa-stethoscope text-sm"></i> A - Assessment</h3>
-                    <div class="flex gap-2">
-                        <div class="flex-[2] bg-slate-50 p-3 rounded-xl border border-slate-100">
-                            <strong class="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 border-b border-slate-200 pb-1">HITS (Ursachen)</strong>
-                            <ul class="text-[10px] font-bold text-slate-700 list-disc pl-4 mt-2 marker:text-amber-400">${hitsLogs.length > 0 ? hitsHtml : '<li class="list-none -ml-4 italic text-slate-400 font-normal">Keine erfasst</li>'}</ul>
+                    <div class="p-3 grid grid-cols-2 gap-y-3">
+                        <div>
+                            <span class="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Patient</span>
+                            <span class="text-sm font-black text-slate-800">${ageStr}</span>
                         </div>
-                        <div class="flex-1 bg-slate-50 p-2 rounded-xl border border-slate-100 flex flex-col items-center justify-center min-w-[70px]">
-                            <span class="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">CCF</span>
-                            <span class="text-3xl font-black leading-none tracking-tighter ${ccfColor}">${ccf}%</span>
+                        <div>
+                            <span class="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Dauer</span>
+                            <span class="text-sm font-black text-slate-800">${window.CPR.Utils.formatTime(totalSec)} Min</span>
+                        </div>
+                        <div class="col-span-2">
+                            <span class="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Status</span>
+                            <span class="text-sm font-black ${state.state === 'ROSC_ACTIVE' ? 'text-emerald-600' : 'text-slate-800'}">${state.state === 'ROSC_ACTIVE' ? 'ROSC' : 'Laufende CPR'}</span>
                         </div>
                     </div>
                 </div>
 
-                <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 relative overflow-hidden">
-                    <div class="absolute top-0 left-0 w-1 h-full bg-[#E3000F]"></div>
-                    <h3 class="text-[10px] font-black text-[#E3000F] uppercase tracking-widest mb-3 flex items-center gap-2"><i class="fa-solid fa-kit-medical text-sm"></i> R - Response</h3>
-                    <div class="flex flex-col gap-1.5">
-                        <div class="flex justify-between items-center bg-slate-50 p-2.5 rounded-xl border border-slate-100"><span class="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2"><i class="fa-solid fa-lungs text-cyan-500 w-4 text-center text-sm"></i> Atemweg</span><span class="text-[11px] font-black text-slate-800">${state.airwayLabel || 'Nicht dok.'}</span></div>
-                        <div class="flex justify-between items-center bg-slate-50 p-2.5 rounded-xl border border-slate-100"><span class="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2"><i class="fa-solid fa-droplet text-indigo-500 w-4 text-center text-sm"></i> Zugang</span><span class="text-[11px] font-black text-slate-800">${state.zugangLabel || 'Nicht dok.'}</span></div>
-                        <div class="flex justify-between items-center bg-slate-50 p-2.5 rounded-xl border border-slate-100"><span class="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2"><i class="fa-solid fa-bolt text-amber-500 w-4 text-center text-sm"></i> Schocks</span><span class="text-[11px] font-black text-slate-800">${state.shockCount || 0}x abgegeben</span></div>
-                        <div class="flex justify-between items-center bg-red-50 p-2.5 rounded-xl border border-red-200 shadow-sm mt-1"><span class="text-[10px] font-black text-red-700 uppercase tracking-widest flex items-center gap-2"><i class="fa-solid fa-syringe text-red-500 w-4 text-center text-sm"></i> Adrenalin</span><div class="text-right leading-tight"><span class="text-[13px] font-black text-[#E3000F] block">${adrTotal}</span><span class="text-[9px] font-bold text-red-500">${adrCount} Gaben</span></div></div>
-                        <div class="flex justify-between items-center bg-purple-50 p-2.5 rounded-xl border border-purple-200 shadow-sm mt-0.5"><span class="text-[10px] font-black text-purple-700 uppercase tracking-widest flex items-center gap-2"><i class="fa-solid fa-pills text-purple-500 w-4 text-center text-sm"></i> Amiodaron</span><div class="text-right leading-tight"><span class="text-[13px] font-black text-purple-700 block">${amioTotal}</span><span class="text-[9px] font-bold text-purple-500">${amioCount} Gaben</span></div></div>
+                <!-- [B] BACKGROUND -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="bg-indigo-50 px-3 py-2 border-b border-indigo-100 flex items-center gap-2">
+                        <i class="fa-solid fa-clipboard-list text-indigo-600"></i>
+                        <h3 class="text-[11px] font-black text-indigo-800 uppercase tracking-widest">B - Background</h3>
+                    </div>
+                    <div class="p-3">
+                        <div class="flex justify-between border-b border-slate-100 pb-3 mb-3">
+                            <div class="text-center">
+                                <span class="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Beobachtet</span>
+                                <span class="text-xs font-black text-slate-800">${aData.beobachtet || '?'}</span>
+                            </div>
+                            <div class="text-center border-l border-r border-slate-100 px-4">
+                                <span class="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Laien-REA</span>
+                                <span class="text-xs font-black text-slate-800">${aData.laienrea || '?'}</span>
+                            </div>
+                            <div class="text-center">
+                                <span class="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Brustschmerz</span>
+                                <span class="text-xs font-black text-slate-800">${aData.brustschmerz || '?'}</span>
+                            </div>
+                        </div>
+                        <div>
+                            <span class="block text-[9px] font-bold text-slate-400 uppercase mb-1.5">SAMPLER</span>
+                            <div class="text-[11px] leading-relaxed text-slate-700">
+                                ${sampStr.length > 0 ? sampStr.join('<br>') : '<span class="italic text-slate-400">Keine Daten erfasst</span>'}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- [A] ASSESSMENT -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="bg-amber-50 px-3 py-2 border-b border-amber-100 flex items-center gap-2">
+                        <i class="fa-solid fa-stethoscope text-amber-600"></i>
+                        <h3 class="text-[11px] font-black text-amber-800 uppercase tracking-widest">A - Assessment</h3>
+                    </div>
+                    <div class="p-3 flex gap-4">
+                        <div class="flex-1">
+                            <span class="block text-[9px] font-bold text-slate-400 uppercase mb-1.5">HITS (Ursachen)</span>
+                            <ul class="text-[11px] font-bold text-slate-700 pl-4 list-disc marker:text-amber-400">
+                                ${hitsLogs.length > 0 ? hitsHtml : '<li class="list-none -ml-4 italic text-slate-400 font-normal">Keine erfasst</li>'}
+                            </ul>
+                        </div>
+                        <div class="shrink-0 flex flex-col items-center justify-center bg-slate-50 px-4 py-2 rounded-xl border border-slate-100 min-w-[70px]">
+                            <span class="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">CCF</span>
+                            <span class="text-2xl font-black ${ccfColor}">${ccf}%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- [R] RESPONSE -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="bg-red-50 px-3 py-2 border-b border-red-100 flex items-center gap-2">
+                        <i class="fa-solid fa-kit-medical text-[#E3000F]"></i>
+                        <h3 class="text-[11px] font-black text-[#E3000F] uppercase tracking-widest">R - Response</h3>
+                    </div>
+                    <div class="flex flex-col">
+                        <div class="flex justify-between items-center px-4 py-3 border-b border-slate-100 bg-slate-50/50">
+                            <span class="text-[10px] font-bold text-slate-500 uppercase"><i class="fa-solid fa-lungs text-cyan-500 w-4"></i> Atemweg</span>
+                            <span class="text-xs font-black text-slate-800 text-right">${state.airwayLabel || 'Nicht dok.'}</span>
+                        </div>
+                        <div class="flex justify-between items-center px-4 py-3 border-b border-slate-100 bg-slate-50/50">
+                            <span class="text-[10px] font-bold text-slate-500 uppercase"><i class="fa-solid fa-droplet text-indigo-500 w-4"></i> Zugang</span>
+                            <span class="text-xs font-black text-slate-800 text-right">${state.zugangLabel || 'Nicht dok.'}</span>
+                        </div>
+                        <div class="flex justify-between items-center px-4 py-3 border-b border-slate-100 bg-slate-50/50">
+                            <span class="text-[10px] font-bold text-slate-500 uppercase"><i class="fa-solid fa-bolt text-amber-500 w-4"></i> Schocks</span>
+                            <span class="text-xs font-black text-slate-800">${state.shockCount || 0}x abgegeben</span>
+                        </div>
+                        <div class="flex justify-between items-center px-4 py-3 border-b border-red-100 bg-red-50/40">
+                            <span class="text-[10px] font-bold text-red-700 uppercase"><i class="fa-solid fa-syringe text-red-500 w-4"></i> Adrenalin</span>
+                            <span class="text-xs font-black text-[#E3000F]">${adrTotal} <span class="text-[9px] font-bold text-red-400 ml-1">(${adrCount}x)</span></span>
+                        </div>
+                        <div class="flex justify-between items-center px-4 py-3 bg-purple-50/40">
+                            <span class="text-[10px] font-bold text-purple-700 uppercase"><i class="fa-solid fa-pills text-purple-500 w-4"></i> Amiodaron</span>
+                            <span class="text-xs font-black text-purple-700">${amioTotal} <span class="text-[9px] font-bold text-purple-400 ml-1">(${amioCount}x)</span></span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -194,21 +248,22 @@ window.CPR.LogTimeline = (function() {
         const { totalSec, data } = extractSbarFacts();
         let currentAppSec = totalSec;
         
-        // VOLLSTÄNDIGE LEGENDE
+        // VOLLSTÄNDIGE LEGENDE (Inklusive Amiodaron)
         let html = `
         <div class="flex flex-col h-full overflow-hidden relative">
             <div class="sticky top-0 z-50 bg-slate-50 border-b border-slate-200 px-2 py-2 shrink-0 shadow-sm">
                 <div class="bg-white p-1.5 rounded-xl border border-slate-100">
-                    <div class="flex flex-wrap justify-center items-center gap-x-3 gap-y-1.5">
-                        <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm">▶️</span><span class="text-[7px] font-bold text-slate-600 uppercase tracking-widest">Start</span></div>
-                        <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm text-emerald-500">❤️</span><span class="text-[7px] font-bold text-slate-600 uppercase tracking-widest">ROSC</span></div>
-                        <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm text-amber-500">⚡</span><span class="text-[7px] font-bold text-slate-600 uppercase tracking-widest">Schockbar</span></div>
-                        <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm relative text-slate-400">⚡<div class="absolute top-1/2 left-[-2px] right-[-2px] h-[1.5px] bg-red-500 rotate-45 -translate-y-1/2"></div></span><span class="text-[7px] font-bold text-slate-600 uppercase tracking-widest">Nicht Schockbar</span></div>
-                        <div class="flex items-center gap-1"><div class="w-[14px] h-[14px] rounded-full bg-[#E3000F] text-white flex items-center justify-center text-[5px] font-black">150J</div><span class="text-[7px] font-bold text-slate-600 uppercase tracking-widest">Schock</span></div>
-                        <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm">💉</span><span class="text-[7px] font-bold text-slate-600 uppercase tracking-widest">Meds</span></div>
-                        <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm">🫁</span><span class="text-[7px] font-bold text-slate-600 uppercase tracking-widest">Atemweg</span></div>
-                        <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm">🩸</span><span class="text-[7px] font-bold text-slate-600 uppercase tracking-widest">Zugang</span></div>
-                        <div class="flex items-center gap-1"><div class="w-4 h-1.5 bg-red-500 rounded"></div><span class="text-[7px] font-bold text-slate-600 uppercase tracking-widest">CPR Pause</span></div>
+                    <div class="flex flex-wrap justify-center items-center gap-x-2 gap-y-1.5">
+                        <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm">▶️</span><span class="text-[7.5px] font-bold text-slate-600 uppercase tracking-widest">Start</span></div>
+                        <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm text-emerald-500">❤️</span><span class="text-[7.5px] font-bold text-slate-600 uppercase tracking-widest">ROSC</span></div>
+                        <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm text-amber-500">⚡</span><span class="text-[7.5px] font-bold text-slate-600 uppercase tracking-widest">Schockbar</span></div>
+                        <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm relative text-slate-400">⚡<div class="absolute top-1/2 left-[-2px] right-[-2px] h-[1.5px] bg-red-500 rotate-45 -translate-y-1/2"></div></span><span class="text-[7.5px] font-bold text-slate-600 uppercase tracking-widest">Kein Schock</span></div>
+                        <div class="flex items-center gap-1"><div class="w-[14px] h-[14px] rounded-full bg-[#E3000F] text-white flex items-center justify-center text-[5px] font-black">J</div><span class="text-[7.5px] font-bold text-slate-600 uppercase tracking-widest">Schock</span></div>
+                        <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm">💉</span><span class="text-[7.5px] font-bold text-slate-600 uppercase tracking-widest">Adr.</span></div>
+                        <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm">💊</span><span class="text-[7.5px] font-bold text-slate-600 uppercase tracking-widest">Amio.</span></div>
+                        <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm">🫁</span><span class="text-[7.5px] font-bold text-slate-600 uppercase tracking-widest">Aw.</span></div>
+                        <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm">🩸</span><span class="text-[7.5px] font-bold text-slate-600 uppercase tracking-widest">Zug.</span></div>
+                        <div class="flex items-center gap-1"><div class="w-4 h-1.5 bg-red-500 rounded"></div><span class="text-[7.5px] font-bold text-slate-600 uppercase tracking-widest">Pause</span></div>
                     </div>
                 </div>
             </div>
@@ -247,7 +302,7 @@ window.CPR.LogTimeline = (function() {
                         <div class="absolute top-1/2 left-0 right-0 h-1 bg-slate-100 rounded-full -translate-y-1/2 shadow-inner"></div>
             `;
 
-            // 🌟 15s LINEAL (Mit Beschriftung)
+            // 15s LINEAL
             for (let t = 15; t < 120; t += 15) {
                 const tickSec = currentStartSec + t;
                 const pct = (t / 120) * 100;
@@ -257,7 +312,7 @@ window.CPR.LogTimeline = (function() {
                 html += `<div class="absolute top-1/2 mt-3.5 text-[6.5px] font-black text-slate-400 -translate-y-1/2 -translate-x-1/2" style="left: ${pct}%;">${window.CPR.Utils.formatTime(tickSec)}</div>`;
             }
 
-            // 🌟 CPR PAUSEN (Rote Balken)
+            // CPR PAUSEN
             pauses.forEach(p => {
                 const pStart = Math.max(p.start, currentStartSec);
                 const pEnd = Math.min(p.end, cycleEndSec);
