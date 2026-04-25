@@ -1,9 +1,8 @@
 /**
- * CPR Assist - Export Modul (V42 - Medical Grade Pro & Legenden Update)
- * - LEGENDE: Amiodaron (💊) in der Canvas-PDF-Legende hinzugefügt.
- * - JOULE SCANNER: Das Canvas im PDF rendert nun "150J" Texte für Schocks!
- * - CPR PAUSEN: Als rote Track-Elemente (statt Icons) inkl. Dauer.
- * - 15s LINEAL: Präzise Markierungen auf dem Canvas-Track inkl. Beschriftung.
+ * CPR Assist - Export Modul (V43 - Blank Page & Pagination Fix)
+ * - FIX 1 (Blank Pages): Container wird hinter die App (z-index: -9999) statt Off-Screen gelegt. 
+ * Zwingt Android zum Rendern der Pixel (verhindert leere weiße PDFs).
+ * - FIX 2 (Pagination): Nutzt native html2pdf__page-break Klassen für saubere Seitenumbrüche.
  */
 
 window.CPR = window.CPR || {};
@@ -168,11 +167,9 @@ window.CPR.Export = (function() {
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, baseWidth, baseHeight);
 
-        // Titel
         ctx.fillStyle = '#64748b'; ctx.font = 'bold 16px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText("GRAFISCHES ZEITLINIEN-GRID (COMPLIANCE & LEITLINIEN AUDIT)", baseWidth / 2, 35);
         
-        // Legende auf Canvas gemalt
         ctx.fillStyle = '#334155'; ctx.font = 'bold 10px Arial';
         const legendText = "▶ START  |  ❤️ ROSC  |  ⚡ SCHOCKBAR  |  🚫⚡ NICHT SCHOCKBAR  |  SCHOCK (Joule in Rot)  |  💉 ADRENALIN  |  💊 AMIODARON  |  🫁 ATEMWEG  |  🩸 ZUGANG  |  CPR PAUSE (Roter Balken)";
         ctx.fillText(legendText, baseWidth / 2, 60);
@@ -185,11 +182,9 @@ window.CPR.Export = (function() {
             const cycleEndSec = currentDrawSec + cycleDuration;
             const lineY = 150 + (i * rowHeight);
 
-            // Hauptlinie
             ctx.beginPath(); ctx.moveTo(paddingX, lineY); ctx.lineTo(baseWidth - paddingX, lineY);
             ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.stroke();
             
-            // 🌟 15-SEKUNDEN LINEAL 🌟
             for (let t = 15; t < 120; t += 15) {
                 const tickSec = currentDrawSec + t;
                 const pct = t / 120;
@@ -203,7 +198,6 @@ window.CPR.Export = (function() {
                 ctx.fillText(window.CPR.Utils.formatTime(tickSec), xTick, lineY + 6);
             }
             
-            // 🌟 CPR PAUSEN 🌟
             pauses.forEach(p => {
                 const pStart = Math.max(p.start, currentDrawSec);
                 const pEnd = Math.min(p.end, cycleEndSec);
@@ -214,7 +208,7 @@ window.CPR.Export = (function() {
                     const xEnd = paddingX + pctEnd * usableWidth;
                     const pWidth = xEnd - xStart;
 
-                    ctx.fillStyle = '#ef4444'; // rot
+                    ctx.fillStyle = '#ef4444'; 
                     ctx.fillRect(xStart, lineY - 4, pWidth, 8);
 
                     if (pWidth > 15) {
@@ -294,10 +288,18 @@ window.CPR.Export = (function() {
         const timeStr = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }).replace(':', '');
         const filename = `CPR_Protokoll_${dateStr}_${timeStr}.pdf`;
 
+        // FIX: Container MUSS z-index: -9999 (hinter der App) haben und left/top 0.
+        // Dadurch ist er für die Kamera (html2canvas) "im Bild", aber der Nutzer sieht ihn nicht.
         const container = document.createElement('div');
-        container.style.position = 'absolute'; container.style.left = '-9999px'; container.style.top = '0';
-        container.style.width = '800px'; container.style.padding = '30px';
-        container.style.fontFamily = 'Arial, sans-serif'; container.style.color = '#1e293b'; container.style.backgroundColor = '#ffffff';
+        container.style.position = 'absolute'; 
+        container.style.left = '0'; 
+        container.style.top = '0';
+        container.style.zIndex = '-9999'; // HINTER DER APP VERSTECKT!
+        container.style.width = '800px'; 
+        container.style.padding = '30px';
+        container.style.fontFamily = 'Arial, sans-serif'; 
+        container.style.color = '#1e293b'; 
+        container.style.backgroundColor = '#ffffff';
 
         let html = `
             <table style="width: 100%; border-bottom: 3px solid #E3000F; padding-bottom: 10px; margin-bottom: 20px;">
@@ -320,10 +322,14 @@ window.CPR.Export = (function() {
             const data = AppState.protocolData;
             const canvas = createTimelineCanvas(data);
             const imgData = canvas.toDataURL('image/png');
-            html += `<div style="page-break-before: always; padding-top: 10px;"><img src="${imgData}" style="width: 100%; max-width: 100%; height: auto; display: block;"></div>`;
+            
+            // FIX: html2pdf__page-break zwingt die Engine, hier eine saubere neue Seite zu beginnen!
+            html += `<div class="html2pdf__page-break"></div>`;
+            html += `<div style="padding-top: 10px;"><img src="${imgData}" style="width: 100%; max-width: 100%; height: auto; display: block;"></div>`;
 
+            html += `<div class="html2pdf__page-break"></div>`;
             html += `
-                <div style="page-break-before: always; padding-top: 10px;">
+                <div style="padding-top: 10px;">
                     <h3 style="margin: 0 0 10px 0; font-size: 14px; color: #64748b; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">MINUTENGENAUE CHRONOLOGIE (LISTENPROTOKOLL)</h3>
                     <table style="width: 100%; border-collapse: collapse; font-size: 12px; border: 1px solid #e2e8f0;">
                         <thead>
@@ -359,7 +365,15 @@ window.CPR.Export = (function() {
         container.innerHTML = html;
         document.body.appendChild(container);
 
-        const opt = { margin: 10, filename: filename, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true, windowWidth: 800 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } };
+        // FIX: pagebreak mode hinzugefügt!
+        const opt = { 
+            margin: 10, 
+            filename: filename, 
+            image: { type: 'jpeg', quality: 0.98 }, 
+            html2canvas: { scale: 2, useCORS: true, windowWidth: 800 }, 
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+            pagebreak: { mode: ['css', 'legacy'] } 
+        };
 
         html2pdf().set(opt).from(container).save().then(() => {
             document.body.removeChild(container);
