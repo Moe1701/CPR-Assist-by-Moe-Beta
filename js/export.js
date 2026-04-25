@@ -1,6 +1,6 @@
 /**
- * CPR Assist - Export Modul (V54 - Data Extraction Fix)
- * - BUGFIX: Synchronisiert mit V54 der log-timeline.js für robusteres ROSC, Abbruch und Pausen-Matching.
+ * CPR Assist - Export Modul (V55 - Data Extraction Fix)
+ * - BUGFIX: Synchronisiert mit V55 der log-timeline.js für robusteres ROSC, Abbruch und Pausen-Matching.
  */
 
 window.CPR = window.CPR || {};
@@ -90,10 +90,17 @@ window.CPR.Export = (function() {
                 endStatus = 'Laufende CPR';
             } else if (t.includes('abbruch') || t.includes('beendet')) {
                 endStatus = 'Abbruch';
-                const parts = d.action.split(':');
-                if (parts.length > 1) abbruchReason = parts[1].trim();
+                const splitChar = t.includes(':') ? ':' : (t.includes('-') ? '-' : null);
+                if (splitChar) {
+                    const parts = d.action.split(splitChar);
+                    if (parts.length > 1) abbruchReason = parts[1].trim();
+                }
             }
         });
+
+        // Fallbacks
+        if (endStatus === 'ROSC' && timeToRosc === null) timeToRosc = totalSec;
+        if (endStatus === 'Abbruch' && !abbruchReason) abbruchReason = "Teamentscheidung / Unbekannt";
 
         return { ageStr, totalSec, ccf, adrCount, adrTotal, amioCount, amioTotal, aData, sampStr, hitsArr, state, data, endStatus, timeToRosc, abbruchReason };
     }
@@ -132,7 +139,7 @@ window.CPR.Export = (function() {
 
         if (endStatus === 'ROSC' && timeToRosc !== null) {
             doc.setFontSize(9); doc.setTextColor(4, 120, 87); doc.setFont("helvetica", "normal");
-            doc.text(`Zeit bis ROSC: ${Utils.formatTime(timeToRosc)}`, 160, y+20, {align: 'center'});
+            doc.text(`Zeit bis ROSC: ${Utils.formatTime(timeToRosc)} Min`, 160, y+20, {align: 'center'});
         } else if (endStatus === 'Abbruch' && abbruchReason) {
             doc.setFontSize(8); doc.setTextColor(71, 85, 105); doc.setFont("helvetica", "normal");
             const splitReason = doc.splitTextToSize(`Grund: ${abbruchReason}`, 65);
@@ -400,7 +407,6 @@ window.CPR.Export = (function() {
             const data = AppState.protocolData;
             
             // SEITE 2+: ZEITLINIE
-            // Nutze die maxSec aus dem log-Verlauf ODER den aktuellen Haupttimer (damit nichts abgeschnitten wird)
             const maxSec = data.length > 0 ? Math.max(AppState.totalSeconds || 0, data[data.length - 1].secondsFromStart) : (AppState.totalSeconds || 0);
             const pauses = extractPauses(data, maxSec);
             const totalPagesTimeline = Math.max(1, Math.ceil(maxSec / (5 * 240))); 
