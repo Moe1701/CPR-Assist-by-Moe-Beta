@@ -1,16 +1,16 @@
 /**
- * CPR Assist - Export Modul (V35 - Android DOM Detach Fix & Centralized Buttons)
- * - BUGFIX EXTREM: Das PDF-Container-DIV wird nun physisch (aber unsichtbar) an den DOM gehängt.
- * Dies verhindert den berüchtigten "setEnd on Range" Android-Crash beim Text-Measuring!
- * - BUGFIX: Alle Event-Listener für das Export-Modal (Tabs, Cancel) sind nun zentralisiert,
- * damit es keine toten Buttons mehr gibt.
+ * CPR Assist - Export Modul (V36 - The God Mode Fix)
+ * - FIX 1 (Dead Buttons): Nutzt Event Delegation (document.addEventListener), 
+ * um 100% verlässliche Klicks zu garantieren, egal wie asynchron die PWA lädt.
+ * - FIX 2 (Android Crash): Alle "text-transform" und "letter-spacing" CSS-Befehle
+ * aus dem PDF-HTML entfernt. Diese lösen den berüchtigten "setEnd on Range" Bug aus!
  */
 
 window.CPR = window.CPR || {};
 
 window.CPR.Export = (function() {
 
-    // --- 1. ICON LOGIK (Nur noch für das Canvas Notenblatt genutzt!) ---
+    // --- 1. ICON LOGIK (Für das Canvas Notenblatt) ---
     function getIconData(txt) {
         if (!txt) return null;
         const t = txt.toLowerCase();
@@ -69,33 +69,31 @@ window.CPR.Export = (function() {
         return { ageStr, totalSec, ccf, adrCount, adrTotal, amioCount, amioTotal, aData, sampStr, hitsLogs, hitsHtml, state };
     }
 
-    // --- 3. HTML GENERATOR ---
+    // --- 3. HTML GENERATOR (Bereinigt von CSS-Range-Killern) ---
     function generateSbarHtml() {
         const { ageStr, totalSec, ccf, adrTotal, amioTotal, aData, sampStr, hitsLogs, hitsHtml, state, adrCount, amioCount } = extractSbarFacts();
         const Utils = window.CPR.Utils;
 
         return `
-            <!-- [S] SITUATION -->
-            <h3 style="margin: 0 0 8px 0; font-size: 16px; text-transform: uppercase; color: #E3000F; border-bottom: 2px solid #f1f5f9; padding-bottom: 4px;">S - Situation</h3>
+            <h3 style="margin: 0 0 8px 0; font-size: 16px; color: #E3000F; border-bottom: 2px solid #f1f5f9; padding-bottom: 4px;">S - SITUATION</h3>
             <table style="width: 100%; margin-bottom: 20px; border-collapse: separate; border-spacing: 5px 0;">
                 <tr>
                     <td style="width: 33%; background: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid #e2e8f0; text-align: center;">
-                        <span style="font-size: 10px; color: #64748b; text-transform: uppercase;">Patient</span><br>
+                        <span style="font-size: 10px; color: #64748b;">PATIENT</span><br>
                         <span style="font-size: 16px; font-weight: bold; color: #0f172a;">${ageStr}</span>
                     </td>
                     <td style="width: 33%; background: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid #e2e8f0; text-align: center;">
-                        <span style="font-size: 10px; color: #64748b; text-transform: uppercase;">Gesamtdauer</span><br>
+                        <span style="font-size: 10px; color: #64748b;">GESAMTDAUER</span><br>
                         <span style="font-size: 16px; font-weight: bold; color: #0f172a;">${Utils.formatTime(totalSec)} Min</span>
                     </td>
                     <td style="width: 33%; background: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid #e2e8f0; text-align: center;">
-                        <span style="font-size: 10px; color: #64748b; text-transform: uppercase;">Aktueller Status</span><br>
-                        <span style="font-size: 16px; font-weight: bold; color: ${state.state === 'ROSC_ACTIVE' ? '#10b981' : '#0f172a'};">${state.state === 'ROSC_ACTIVE' ? 'ROSC' : 'Laufende CPR'}</span>
+                        <span style="font-size: 10px; color: #64748b;">AKTUELLER STATUS</span><br>
+                        <span style="font-size: 16px; font-weight: bold; color: ${state.state === 'ROSC_ACTIVE' ? '#10b981' : '#0f172a'};">${state.state === 'ROSC_ACTIVE' ? 'ROSC' : 'LAUFENDE CPR'}</span>
                     </td>
                 </tr>
             </table>
 
-            <!-- [B] BACKGROUND -->
-            <h3 style="margin: 0 0 8px 0; font-size: 16px; text-transform: uppercase; color: #E3000F; border-bottom: 2px solid #f1f5f9; padding-bottom: 4px;">B - Background (Anamnese)</h3>
+            <h3 style="margin: 0 0 8px 0; font-size: 16px; color: #E3000F; border-bottom: 2px solid #f1f5f9; padding-bottom: 4px;">B - BACKGROUND (ANAMNESE)</h3>
             <div style="background: #ffffff; padding: 15px; border-radius: 6px; border: 1px solid #e2e8f0; margin-bottom: 20px; font-size: 14px;">
                 <table style="width: 100%; border-collapse: collapse;">
                     <tr>
@@ -110,8 +108,7 @@ window.CPR.Export = (function() {
                 </div>
             </div>
 
-            <!-- [A] ASSESSMENT -->
-            <h3 style="margin: 0 0 8px 0; font-size: 16px; text-transform: uppercase; color: #E3000F; border-bottom: 2px solid #f1f5f9; padding-bottom: 4px;">A - Assessment (Diagnostik)</h3>
+            <h3 style="margin: 0 0 8px 0; font-size: 16px; color: #E3000F; border-bottom: 2px solid #f1f5f9; padding-bottom: 4px;">A - ASSESSMENT (DIAGNOSTIK)</h3>
             <div style="background: #ffffff; padding: 15px; border-radius: 6px; border: 1px solid #e2e8f0; margin-bottom: 20px; font-size: 14px;">
                 <table style="width: 100%; border-collapse: collapse;">
                     <tr>
@@ -128,8 +125,7 @@ window.CPR.Export = (function() {
                 </table>
             </div>
 
-            <!-- [R] RESPONSE -->
-            <h3 style="margin: 0 0 8px 0; font-size: 16px; text-transform: uppercase; color: #E3000F; border-bottom: 2px solid #f1f5f9; padding-bottom: 4px;">R - Response (Maßnahmen)</h3>
+            <h3 style="margin: 0 0 8px 0; font-size: 16px; color: #E3000F; border-bottom: 2px solid #f1f5f9; padding-bottom: 4px;">R - RESPONSE (MAßNAHMEN)</h3>
             <table style="width: 100%; font-size: 14px; border-collapse: collapse; border: 1px solid #e2e8f0;">
                 <tr><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; width: 30%; color: #64748b; background: #f8fafc;"><strong>Atemweg</strong></td><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-weight: bold;">${state.airwayLabel || 'Nicht dokumentiert'}</td></tr>
                 <tr><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; color: #64748b; background: #f8fafc;"><strong>Zugang</strong></td><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-weight: bold;">${state.zugangLabel || 'Nicht dokumentiert'}</td></tr>
@@ -171,7 +167,7 @@ window.CPR.Export = (function() {
         drawSafeRoundRect(ctx, 40, 20, baseWidth - 80, 50, 8);
         ctx.fill(); ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1; ctx.stroke();
         ctx.fillStyle = '#64748b'; ctx.font = 'bold 14px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText("GRAFISCHES ZEITLINIEN-GRID (Compliance & Leitlinien Audit)", baseWidth / 2, 45);
+        ctx.fillText("GRAFISCHES ZEITLINIEN-GRID (COMPLIANCE & LEITLINIEN AUDIT)", baseWidth / 2, 45);
 
         const paddingX = 80;
         const usableWidth = baseWidth - (paddingX * 2);
@@ -241,7 +237,7 @@ window.CPR.Export = (function() {
         return canvas;
     }
 
-    // --- 5. PDF GENERIERUNG (Der DOM Detach Fix) ---
+    // --- 5. PDF GENERIERUNG ---
     function generatePdfExport() {
         const { AppState, Utils } = window.CPR;
         if (!AppState || !AppState.protocolData || AppState.protocolData.length === 0) {
@@ -250,7 +246,7 @@ window.CPR.Export = (function() {
 
         const btnPdf = document.getElementById('btn-run-pdf-export');
         const origContent = btnPdf ? btnPdf.innerHTML : '';
-        if (btnPdf) btnPdf.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Erstelle PDF...';
+        if (btnPdf) btnPdf.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> ERSTELLE PDF...';
 
         const btnExportShort = document.getElementById('btn-export-short');
         const isSummary = btnExportShort && btnExportShort.classList.contains('bg-white');
@@ -260,26 +256,21 @@ window.CPR.Export = (function() {
         const timeStr = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }).replace(':', '');
         const filename = `CPR_Protokoll_${dateStr}_${timeStr}.pdf`;
 
-        // 🌟 DER ABSOLUTE PANZERGLAS-FIX FÜR ANDROID 🌟
-        // Der Container MUSS physisch in den Body gehängt werden, darf aber nicht sichtbar sein!
+        // Container NICHT mehr in den Body hängen (um Ghost-Overlays zu vermeiden)
         const container = document.createElement('div');
-        container.id = 'pdf-render-container';
-        container.style.position = 'absolute';
-        container.style.left = '-9999px'; // Aus dem Bild schieben
-        container.style.top = '0';
         container.style.width = '800px'; 
         container.style.padding = '30px';
         container.style.fontFamily = 'Arial, sans-serif';
         container.style.color = '#1e293b';
         container.style.backgroundColor = '#ffffff';
 
-        // HEADER
+        // HEADER (Clean CSS)
         let html = `
             <table style="width: 100%; border-bottom: 3px solid #E3000F; padding-bottom: 10px; margin-bottom: 20px;">
                 <tr>
                     <td style="vertical-align: bottom;">
-                        <h1 style="margin: 0; font-size: 26px; color: #0f172a; text-transform: uppercase; letter-spacing: 1px;">Reanimationsprotokoll</h1>
-                        <p style="margin: 5px 0 0 0; color: #64748b; font-size: 12px; font-weight: bold; letter-spacing: 1px;">Generiert durch CPR Assist | MODUS: ${isSummary ? 'SCHOCKRAUM ÜBERGABE' : 'DEBRIEFING & AUDIT'}</p>
+                        <h1 style="margin: 0; font-size: 26px; color: #0f172a;">REANIMATIONSPROTOKOLL</h1>
+                        <p style="margin: 5px 0 0 0; color: #64748b; font-size: 12px; font-weight: bold;">GENERIERT DURCH CPR ASSIST | MODUS: ${isSummary ? 'SCHOCKRAUM ÜBERGABE' : 'DEBRIEFING & AUDIT'}</p>
                     </td>
                     <td style="vertical-align: bottom; text-align: right; color: #64748b; font-size: 14px;">
                         <strong>Datum:</strong> ${now.toLocaleDateString()}<br>
@@ -305,7 +296,7 @@ window.CPR.Export = (function() {
 
             html += `
                 <div style="page-break-before: always; padding-top: 10px;">
-                    <h3 style="margin: 0 0 10px 0; font-size: 14px; text-transform: uppercase; color: #64748b; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">Minutengenaue Chronologie (Listenprotokoll)</h3>
+                    <h3 style="margin: 0 0 10px 0; font-size: 14px; color: #64748b; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">MINUTENGENAUE CHRONOLOGIE (LISTENPROTOKOLL)</h3>
                     <table style="width: 100%; border-collapse: collapse; font-size: 12px; border: 1px solid #e2e8f0;">
                         <thead>
                             <tr style="background: #f1f5f9; text-align: left;">
@@ -334,7 +325,6 @@ window.CPR.Export = (function() {
         html += `<div style="margin-top: 30px; font-size: 10px; color: #94a3b8; text-align: center;">Dieses Protokoll wurde maschinell durch CPR Assist erstellt. Alle Angaben sind fachlich zu prüfen.</div>`;
         
         container.innerHTML = html;
-        document.body.appendChild(container); // 🌟 PHYSISCH AN DEN DOM HÄNGEN 🌟
 
         const opt = {
             margin:       10,
@@ -345,17 +335,11 @@ window.CPR.Export = (function() {
         };
 
         html2pdf().set(opt).from(container).save().then(() => {
-            // Nach dem Druck: Clean up! Container restlos löschen.
-            document.body.removeChild(container);
-            
             if (btnPdf) btnPdf.innerHTML = origContent;
             const em = document.getElementById('export-modal');
             if (em) em.classList.replace('flex', 'hidden');
             if (Utils.vibrate) Utils.vibrate(30);
         }).catch(err => {
-            // Auch bei Fehler sofort aufräumen!
-            document.body.removeChild(container);
-            
             alert("Fehler beim PDF Export: " + err.message);
             if (btnPdf) btnPdf.innerHTML = origContent;
         });
@@ -403,71 +387,109 @@ window.CPR.Export = (function() {
         
         text += "\n-- Generiert durch CPR Assist --";
 
-        if (navigator.clipboard && window.isSecureContext) {
-            navigator.clipboard.writeText(text).then(() => {
-                if(Utils.vibrate) Utils.vibrate(30);
-                const btnTxt = document.getElementById('btn-run-txt-export');
-                if(btnTxt) {
-                    const oldHtml = btnTxt.innerHTML;
-                    btnTxt.innerHTML = '<i class="fa-solid fa-check text-lg"></i> Kopiert!';
-                    btnTxt.classList.replace('bg-blue-50', 'bg-emerald-50'); btnTxt.classList.replace('text-blue-700', 'text-emerald-700');
-                    setTimeout(() => { btnTxt.innerHTML = oldHtml; btnTxt.classList.replace('bg-emerald-50', 'bg-blue-50'); btnTxt.classList.replace('text-emerald-700', 'text-blue-700'); }, 2000);
-                }
-            }).catch(err => { alert("Konnte nicht kopieren."); });
-        } else {
-            const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta); ta.select();
-            try { document.execCommand('copy'); if(Utils.vibrate) Utils.vibrate(30); alert("Text kopiert!"); } catch(err) {}
+        function fallbackCopy(t) {
+            const ta = document.createElement("textarea"); ta.value = t; document.body.appendChild(ta); ta.select();
+            try { document.execCommand('copy'); updateTxtButton(); } catch(err) { alert("Fehler beim Kopieren."); }
             document.body.removeChild(ta);
+        }
+
+        function updateTxtButton() {
+            if(Utils.vibrate) Utils.vibrate(30);
+            const btnTxt = document.getElementById('btn-run-txt-export');
+            if(btnTxt) {
+                const oldHtml = btnTxt.innerHTML;
+                btnTxt.innerHTML = '<i class="fa-solid fa-check text-lg"></i> KOPIERT!';
+                btnTxt.classList.replace('bg-blue-50', 'bg-emerald-50'); btnTxt.classList.replace('text-blue-700', 'text-emerald-700');
+                setTimeout(() => { btnTxt.innerHTML = oldHtml; btnTxt.classList.replace('bg-emerald-50', 'bg-blue-50'); btnTxt.classList.replace('text-emerald-700', 'text-blue-700'); }, 2000);
+            }
+        }
+
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(text).then(updateTxtButton).catch(() => fallbackCopy(text));
+        } else {
+            fallbackCopy(text);
         }
     }
 
-    // --- 7. ZENTRALE INITIALISIERUNG (Fixt die kaputten Buttons) ---
+    // --- 7. EVENT DELEGATION (Der "God Mode" für tote Buttons) ---
     function init() {
-        const btnPdf = document.getElementById('btn-run-pdf-export');
-        if (btnPdf) btnPdf.addEventListener('click', (e) => { e.preventDefault(); generatePdfExport(); });
-
-        const btnTxt = document.getElementById('btn-run-txt-export');
-        if (btnTxt) btnTxt.addEventListener('click', (e) => { e.preventDefault(); generateTxtExport(); });
-
-        const btnDebriefExport = document.getElementById('btn-debrief-export');
-        if (btnDebriefExport) btnDebriefExport.addEventListener('click', (e) => {
-            e.preventDefault();
-            const em = document.getElementById('export-modal');
-            if (em) em.classList.replace('hidden', 'flex');
-        });
-
-        // 🌟 ZENTRALE STEUERUNG DER MODAL-BUTTONS 🌟
-        const btnShort = document.getElementById('btn-export-short');
-        const btnLong = document.getElementById('btn-export-long');
-        const btnCancel = document.getElementById('btn-cancel-export');
-
-        if (btnShort && btnLong) {
-            btnShort.addEventListener('click', (e) => {
-                e.preventDefault();
-                btnShort.className = 'flex-1 py-2 rounded-lg text-[10px] font-black uppercase bg-white text-slate-800 shadow-sm border border-slate-200 transition-all';
-                btnLong.className = 'flex-1 py-2 rounded-lg text-[10px] font-black uppercase text-slate-500 border border-transparent transition-all';
-                if (window.CPR.AppState) window.CPR.AppState.protocolViewMode = 'summary';
-            });
+        document.addEventListener('click', function(e) {
             
-            btnLong.addEventListener('click', (e) => {
-                e.preventDefault();
-                btnLong.className = 'flex-1 py-2 rounded-lg text-[10px] font-black uppercase bg-white text-slate-800 shadow-sm border border-slate-200 transition-all';
-                btnShort.className = 'flex-1 py-2 rounded-lg text-[10px] font-black uppercase text-slate-500 border border-transparent transition-all';
-                if (window.CPR.AppState) window.CPR.AppState.protocolViewMode = 'timeline';
-            });
-        }
+            // 1. PDF Generieren Button
+            const btnPdf = e.target.closest('#btn-run-pdf-export');
+            if (btnPdf) {
+                e.preventDefault(); e.stopPropagation();
+                generatePdfExport();
+                return;
+            }
 
-        if (btnCancel) {
-            btnCancel.addEventListener('click', (e) => {
-                e.preventDefault();
+            // 2. Text Kopieren Button
+            const btnTxt = e.target.closest('#btn-run-txt-export');
+            if (btnTxt) {
+                e.preventDefault(); e.stopPropagation();
+                generateTxtExport();
+                return;
+            }
+
+            // 3. Tab "Übergabe"
+            const btnShort = e.target.closest('#btn-export-short');
+            if (btnShort) {
+                e.preventDefault(); e.stopPropagation();
+                const btnLong = document.getElementById('btn-export-long');
+                if (btnLong) {
+                    btnShort.className = 'flex-1 py-2 rounded-lg text-[10px] font-black uppercase bg-white text-slate-800 shadow-sm border border-slate-200 transition-all';
+                    btnLong.className = 'flex-1 py-2 rounded-lg text-[10px] font-black uppercase text-slate-500 border border-transparent transition-all';
+                }
+                if (window.CPR.AppState) window.CPR.AppState.protocolViewMode = 'summary';
+                return;
+            }
+
+            // 4. Tab "Debriefing"
+            const btnLong = e.target.closest('#btn-export-long');
+            if (btnLong) {
+                e.preventDefault(); e.stopPropagation();
+                const btnShortLocal = document.getElementById('btn-export-short');
+                if (btnShortLocal) {
+                    btnLong.className = 'flex-1 py-2 rounded-lg text-[10px] font-black uppercase bg-white text-slate-800 shadow-sm border border-slate-200 transition-all';
+                    btnShortLocal.className = 'flex-1 py-2 rounded-lg text-[10px] font-black uppercase text-slate-500 border border-transparent transition-all';
+                }
+                if (window.CPR.AppState) window.CPR.AppState.protocolViewMode = 'timeline';
+                return;
+            }
+
+            // 5. Abbrechen Button
+            const btnCancel = e.target.closest('#btn-cancel-export');
+            if (btnCancel) {
+                e.preventDefault(); e.stopPropagation();
                 const em = document.getElementById('export-modal');
                 if (em) em.classList.replace('flex', 'hidden');
-            });
-        }
+                return;
+            }
+
+            // 6. Export Modal Öffnen (vom Logbuch)
+            const btnExportLog = e.target.closest('#btn-export-log');
+            if (btnExportLog) {
+                e.preventDefault(); e.stopPropagation();
+                const em = document.getElementById('export-modal');
+                if (em) em.classList.replace('hidden', 'flex');
+                return;
+            }
+            
+            // 7. Export Modal Öffnen (vom Debriefing Screen)
+            const btnDebriefExport = e.target.closest('#btn-debrief-export');
+            if (btnDebriefExport) {
+                e.preventDefault(); e.stopPropagation();
+                const em = document.getElementById('export-modal');
+                if (em) em.classList.replace('hidden', 'flex');
+                return;
+            }
+        });
     }
 
     return { init: init };
 
 })();
 
-document.addEventListener('DOMContentLoaded', () => { setTimeout(() => { if (window.CPR && window.CPR.Export) window.CPR.Export.init(); }, 150); });
+document.addEventListener('DOMContentLoaded', () => { 
+    setTimeout(() => { if (window.CPR && window.CPR.Export) window.CPR.Export.init(); }, 150); 
+});
