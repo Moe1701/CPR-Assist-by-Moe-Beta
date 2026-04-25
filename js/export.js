@@ -1,7 +1,8 @@
 /**
- * CPR Assist - Export Modul (V52 - Native jsPDF Engine & Landscape Timeline 4 Min)
- * - ARCHITEKTUR-WECHSEL: Komplett auf native jsPDF umgestellt!
- * - ZEITLINIE: Querformat (Landscape), exakt 5 Linien à 4 Minuten (240s) = 20 Minuten pro A4-Seite.
+ * CPR Assist - Export Modul (V53 - ROSC Zeit & Abbruchgrund)
+ * - FEATURE: Zeit bis ROSC und Abbruchgrund werden in der SBAR Ansicht generiert.
+ * - NATIVE PDF: Automatisch ins Vektor-Layout des PDFs eingebaut.
+ * - TXT EXPORT: Wird beim Kopieren in die Zwischenablage sauber mit übergeben.
  */
 
 window.CPR = window.CPR || {};
@@ -51,8 +52,10 @@ window.CPR.Export = (function() {
         return pauses;
     }
 
+    // --- 2. DATA HARVESTER (Synchron mit Timeline) ---
     function extractSbarFacts() {
         const state = window.CPR.AppState || {};
+        const data = state.protocolData || [];
         const totalSec = state.totalSeconds || 0;
         const arrSec = state.arrestSeconds || 0;
         const compSec = state.compressingSeconds || 0;
@@ -69,16 +72,45 @@ window.CPR.Export = (function() {
             const sMap = {s:'Symptome', a:'Allergien', m:'Medikamente', p:'Vorerkrankungen', l:'Letzte Mahlzeit', e:'Ereignis', r:'Risikofaktoren'};
             Object.keys(sMap).forEach(k => { if (aData.sampler[k]) sampStr.push(`${sMap[k]}: ${aData.sampler[k]}`); });
         }
-        const data = state.protocolData || [];
         const hitsLogs = data.filter(d => d.action.includes('HITS:'));
         const hitsArr = hitsLogs.map(h => h.action.replace('HITS: ', ''));
 
-        return { ageStr, totalSec, ccf, adrCount, adrTotal, amioCount, amioTotal, aData, sampStr, hitsArr, state, data };
+        // 🌟 END-STATUS & ROSC-ZEIT ERMITTELN 🌟
+        let endStatus = state.isRunning ? 'Laufende CPR' : (state.state === 'ROSC_ACTIVE' ? 'ROSC' : 'Laufende CPR');
+        let timeToRosc = null;
+        let abbruchReason = null;
+
+        for (let i = 0; i < data.length; i++) {
+            if (data[i].action.toLowerCase().includes('rosc!') && timeToRosc === null) {
+                timeToRosc = data[i].secondsFromStart;
+                break;
+            }
+        }
+
+        for (let i = data.length - 1; i >= 0; i--) {
+            const t = data[i].action.toLowerCase();
+            if (t.includes('abbruch') || t.includes('beendet')) {
+                endStatus = 'Abbruch';
+                const parts = data[i].action.split(':');
+                abbruchReason = parts.length > 1 ? parts[1].trim() : 'Nicht dokumentiert';
+                break;
+            }
+            if (t.includes('rosc!')) {
+                endStatus = 'ROSC';
+                break;
+            }
+            if (t.includes('re-arrest') || t.includes('start rea')) {
+                endStatus = state.isRunning ? 'Laufende CPR' : 'Pausiert';
+                break;
+            }
+        }
+
+        return { ageStr, totalSec, ccf, adrCount, adrTotal, amioCount, amioTotal, aData, sampStr, hitsArr, state, data, endStatus, timeToRosc, abbruchReason };
     }
 
-    // --- 2. NATIVE SBAR DRAWING (jsPDF Vektor-Text) ---
+    // --- 3. NATIVE SBAR DRAWING (jsPDF Vektor-Text) ---
     function drawSbarNative(doc, facts) {
-        const { ageStr, totalSec, ccf, adrTotal, amioTotal, aData, sampStr, hitsArr, state, adrCount, amioCount } = facts;
+        const { ageStr, totalSec, ccf, adrTotal, amioTotal, aData, sampStr, hitsArr, state, adrCount, amioCount, endStatus, timeToRosc, abbruchReason } = facts;
         const Utils = window.CPR.Utils;
         
         let y = 45;
@@ -89,24 +121,37 @@ window.CPR.Export = (function() {
         doc.setDrawColor(241, 245, 249); doc.setLineWidth(0.5); doc.line(15, y+2, 195, y+2);
         y += 10;
 
-        // Boxen Situation
+        // Boxen Situation (Breiten optimiert für Status-Text)
         doc.setFillColor(248, 250, 252); doc.setDrawColor(226, 232, 240); doc.setLineWidth(0.2);
-        doc.roundedRect(15, y, 55, 18, 2, 2, 'FD');
-        doc.roundedRect(75, y, 60, 18, 2, 2, 'FD');
-        doc.roundedRect(140, y, 55, 18, 2, 2, 'FD');
+        doc.roundedRect(15, y, 55, 24, 2, 2, 'FD');  // Patient
+        doc.roundedRect(75, y, 45, 24, 2, 2, 'FD');  // Dauer
+        doc.roundedRect(125, y, 70, 24, 2, 2, 'FD'); // Status
         
         doc.setFontSize(8); doc.setTextColor(100, 116, 139); doc.setFont("helvetica", "normal");
         doc.text("PATIENT", 42.5, y+6, {align: 'center'});
-        doc.text("GESAMTDAUER", 105, y+6, {align: 'center'});
-        doc.text("AKTUELLER STATUS", 167.5, y+6, {align: 'center'});
+        doc.text("GESAMTDAUER", 97.5, y+6, {align: 'center'});
+        doc.text("AKTUELLER STATUS", 160, y+6, {align: 'center'});
         
         doc.setFontSize(12); doc.setTextColor(15, 23, 42); doc.setFont("helvetica", "bold");
         doc.text(ageStr, 42.5, y+14, {align: 'center'});
-        doc.text(`${Utils.formatTime(totalSec)} Min`, 105, y+14, {align: 'center'});
-        if(state.state === 'ROSC_ACTIVE') doc.setTextColor(16, 185, 129);
-        doc.text(state.state === 'ROSC_ACTIVE' ? 'ROSC' : 'LAUFENDE CPR', 167.5, y+14, {align: 'center'});
+        doc.text(`${Utils.formatTime(totalSec)} Min`, 97.5, y+14, {align: 'center'});
         
-        y += 30;
+        // STATUS & ROSC ZEIT RENDERN
+        if(endStatus === 'ROSC') doc.setTextColor(16, 185, 129);
+        else if(endStatus === 'Abbruch') doc.setTextColor(15, 23, 42);
+        
+        doc.text(endStatus.toUpperCase(), 160, y+14, {align: 'center'});
+
+        if (endStatus === 'ROSC' && timeToRosc !== null) {
+            doc.setFontSize(9); doc.setTextColor(4, 120, 87); doc.setFont("helvetica", "normal");
+            doc.text(`Zeit bis ROSC: ${Utils.formatTime(timeToRosc)}`, 160, y+20, {align: 'center'});
+        } else if (endStatus === 'Abbruch' && abbruchReason) {
+            doc.setFontSize(8); doc.setTextColor(71, 85, 105); doc.setFont("helvetica", "normal");
+            const splitReason = doc.splitTextToSize(`Grund: ${abbruchReason}`, 65);
+            doc.text(splitReason, 160, y+20, {align: 'center'});
+        }
+        
+        y += 35;
 
         // Titel: B - BACKGROUND
         doc.setFontSize(14); doc.setTextColor(227, 0, 15); doc.setFont("helvetica", "bold");
@@ -187,7 +232,7 @@ window.CPR.Export = (function() {
         drawRow(y+32, "Amiodaron", `Gesamt: ${amioTotal} (${amioCount} Gaben)`, false, true);
     }
 
-    // --- 3. CANVAS NOTENBLATT ENGINE (QUERFORMAT: 5x 4-Minuten) ---
+    // --- 4. CANVAS NOTENBLATT ENGINE (QUERFORMAT: 5x 4-Minuten) ---
     function drawSafeRoundRect(ctx, x, y, w, h, r) {
         if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); } else {
             ctx.beginPath(); ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y);
@@ -328,7 +373,7 @@ window.CPR.Export = (function() {
         return canvas;
     }
 
-    // --- 4. NATIVE PDF GENERIERUNG (Der jsPDF God Mode) ---
+    // --- 5. NATIVE PDF GENERIERUNG ---
     function generatePdfExport() {
         const { AppState, Utils } = window.CPR;
         if (!AppState || !AppState.protocolData || AppState.protocolData.length === 0) { alert("Das Protokoll ist leer."); return; }
@@ -472,15 +517,22 @@ window.CPR.Export = (function() {
         
         const btnExportShort = document.getElementById('btn-export-short');
         const isSummary = btnExportShort && btnExportShort.classList.contains('bg-white');
-        const { ageStr, totalSec, ccf, adrTotal, amioTotal, aData, sampStr, hitsArr, state, adrCount, amioCount } = extractSbarFacts();
+        const { ageStr, totalSec, ccf, adrTotal, amioTotal, aData, sampStr, hitsArr, state, adrCount, amioCount, endStatus, timeToRosc, abbruchReason } = extractSbarFacts();
         
         let text = "🚨 REANIMATIONSPROTOKOLL - " + (isSummary ? "ÜBERGABE (SBAR)" : "DEBRIEFING") + "\n";
         text += "Datum: " + new Date().toLocaleDateString() + " | Beginn: " + (AppState.startTime || '--:--') + "\n\n";
-        text += "--- [S] SITUATION ---\nPatient: " + ageStr + "\nStatus: " + (state.state === 'ROSC_ACTIVE' ? 'ROSC' : 'Laufende CPR') + "\nDauer: " + Utils.formatTime(totalSec) + " Min\n\n";
-        text += "--- [B] BACKGROUND ---\nBeobachtet: " + (aData.beobachtet || '?') + " | Laien-REA: " + (aData.laienrea || '?') + " | Brustschmerz: " + (aData.brustschmerz || '?') + "\n";
+        
+        text += "--- [S] SITUATION ---\nPatient: " + ageStr + "\n";
+        text += "Status: " + endStatus + "\nDauer: " + Utils.formatTime(totalSec) + " Min\n";
+        if (endStatus === 'ROSC' && timeToRosc !== null) text += "Zeit bis ROSC: " + Utils.formatTime(timeToRosc) + " Min\n";
+        if (endStatus === 'Abbruch' && abbruchReason) text += "Abbruchgrund: " + abbruchReason + "\n";
+
+        text += "\n--- [B] BACKGROUND ---\nBeobachtet: " + (aData.beobachtet || '?') + " | Laien-REA: " + (aData.laienrea || '?') + " | Brustschmerz: " + (aData.brustschmerz || '?') + "\n";
         if (sampStr.length > 0) text += sampStr.join('\n') + "\n";
+        
         text += "\n--- [A] ASSESSMENT ---\nCPR Qualität (CCF): " + ccf + "%\n";
         if (hitsArr.length > 0) hitsArr.forEach(h => text += "- " + h + "\n"); else text += "Keine HITS erfasst.\n";
+        
         text += "\n--- [R] RESPONSE ---\nAtemweg: " + (AppState.airwayLabel || 'Nicht dok.') + "\nZugang: " + (AppState.zugangLabel || 'Nicht dok.') + "\nSchocks: " + (AppState.shockCount || 0) + "x abgegeben\nAdrenalin: " + adrTotal + " (" + adrCount + " Gaben)\nAmiodaron: " + amioTotal + " (" + amioCount + " Gaben)\n\n";
 
         if (!isSummary) {
