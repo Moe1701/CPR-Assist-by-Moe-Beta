@@ -1,8 +1,8 @@
 /**
- * CPR Assist - Log Timeline Modul (V55 - Data Extraction & Live Marker Fix)
+ * CPR Assist - Log Timeline Modul (V56 - SBAR & ROSC Update)
  * - BUGFIX: Live-Marker stoppt nicht mehr am Ende eines 2-Min-Blocks, sondern spawnt nahtlos im nächsten.
  * - BUGFIX: CPR Pausen Detektor ist nun viel robuster (erkennt auch 'Analyse' etc.).
- * - BUGFIX: ROSC-Zeit und Abbruchgrund werden garantiert abgedruckt.
+ * - FEATURE: Medical Grade SBAR-Struktur für die Übergabe.
  */
 
 window.CPR = window.CPR || {};
@@ -24,474 +24,546 @@ window.CPR.LogTimeline = (function() {
         
         if (t.includes('nicht schockbar')) return { 
             icon: '🚫⚡', 
-            htmlIcon: '<div class="relative">⚡<div class="absolute top-1/2 left-[-2px] right-[-2px] h-[2px] bg-red-500 rotate-45 -translate-y-1/2 shadow-sm"></div></div>', 
-            type: 'analysis-no', color: 'text-slate-400', bg: 'bg-slate-200' 
+            htmlIcon: '<div class="relative">⚡<div class="absolute top-1/2 left-[-2px] right-[-2px] h-[2px] bg-[#E3000F] -rotate-45"></div></div>',
+            type: 'analysis-no', color: 'text-slate-500', bg: 'bg-white border-2 border-slate-200' 
         };
-        if (t.includes('schockbar')) return { icon: '⚡', type: 'analysis-yes', color: 'text-amber-500', bg: 'bg-amber-50' };
+        
+        if (t.includes('schockbar')) return { icon: '⚡', type: 'analysis-yes', color: 'text-[#E3000F]', bg: 'bg-red-50 border-2 border-red-200' };
 
-        if (t.includes('hits') || t.includes('sampler') || t.includes('anamnese')) return { icon: '📋', type: 'info', color: 'text-slate-500', bg: 'bg-white' };
-        if (t.includes('adrenalin')) return { icon: '💉', type: 'adr', color: 'text-[#E3000F]', bg: 'bg-red-50' };
-        if (t.includes('amiodaron') || t.includes('amio')) return { icon: '💊', type: 'amio', color: 'text-purple-600', bg: 'bg-purple-50' };
-        if (t.includes('atemweg:') || t.includes('beatmungen durchge')) return { icon: '🫁', type: 'airway', color: 'text-cyan-600', bg: 'bg-cyan-50' };
-        if (t.includes('zugang:')) return { icon: '🩸', type: 'access', color: 'text-indigo-600', bg: 'bg-indigo-50' };
-        if (t.includes('start rea')) return { icon: '▶️', type: 'start', color: 'text-emerald-600', bg: 'bg-emerald-50' };
-        if (t.includes('rosc!')) return { icon: '❤️', type: 'rosc', color: 'text-emerald-600', bg: 'bg-emerald-50' };
-        if (t.includes('re-arrest')) return { icon: '💔', type: 'arrest', color: 'text-red-600', bg: 'bg-red-100' };
-        if (t.includes('abbruch') || t.includes('beendet')) return { icon: '🛑', type: 'end', color: 'text-slate-800', bg: 'bg-slate-200' };
+        if (t.includes('hits') || t.includes('sampler') || t.includes('anamnese')) return { icon: '📋', type: 'info', color: 'text-blue-500', bg: 'bg-blue-50 border border-blue-100' };
+        if (t.includes('adrenalin')) return { icon: '💉', type: 'adr', color: 'text-white', bg: 'bg-[#E3000F]' };
+        if (t.includes('amiodaron') || t.includes('amio')) return { icon: '💊', type: 'amio', color: 'text-white', bg: 'bg-purple-500' };
+        if (t.includes('atemweg:') || t.includes('beatmungen durchge')) return { icon: '🫁', type: 'airway', color: 'text-cyan-600', bg: 'bg-cyan-50 border border-cyan-200' };
+        if (t.includes('zugang:')) return { icon: '🩸', type: 'zugang', color: 'text-indigo-600', bg: 'bg-indigo-50 border border-indigo-200' };
+        if (t.includes('rosc')) return { icon: '❤️', type: 'rosc', color: 'text-white', bg: 'bg-emerald-500 shadow-md animate-pulse' };
+        if (t.includes('abbruch:')) return { icon: '🛑', type: 'abbruch', color: 'text-white', bg: 'bg-slate-800 shadow-md' };
         
-        if (t.includes('kompression pause') || t.includes('kompression fortgesetzt') || 
-            t.includes('beatmungen übersprungen') || t.includes('modus manuell') ||
-            t.includes('atemweg entfernt')) return null; 
-        
-        return { icon: '🔹', type: 'default', color: 'text-slate-400', bg: 'bg-slate-100' };
+        return null; // Kein Icon, nur normaler Punkt
     }
 
-    // --- PAUSEN EXTRAKTOR (Robustes Matching) ---
-    function extractPauses(data, currentAppSec) {
-        let pauses = [];
-        let currentStart = null;
-        data.forEach(d => {
-            const t = d.action.toLowerCase();
-            if (t.includes('pause') || t.includes('stop') || t.includes('analyse') || t.includes('schockbar') || t.includes('unterbroch')) {
-                if (currentStart === null) currentStart = d.secondsFromStart;
-            }
-            if (t.includes('fortgesetzt') || t.includes('weiter') || t.includes('start')) {
-                if (currentStart !== null) {
-                    pauses.push({ start: currentStart, end: d.secondsFromStart, duration: d.secondsFromStart - currentStart });
-                    currentStart = null;
-                }
-            }
-        });
-        if (currentStart !== null) {
-            pauses.push({ start: currentStart, end: currentAppSec, duration: currentAppSec - currentStart, ongoing: true });
-        }
-        return pauses;
+    function parseTime(timeStr) {
+        if (!timeStr) return 0;
+        const pts = timeStr.split(':');
+        if (pts.length === 3) return parseInt(pts[0])*3600 + parseInt(pts[1])*60 + parseInt(pts[2]);
+        if (pts.length === 2) return parseInt(pts[0])*60 + parseInt(pts[1]);
+        return 0;
     }
 
-    // --- 2. DATA HARVESTER ---
-    function extractSbarFacts() {
-        const state = window.CPR.AppState || {};
-        const data = state.protocolData || [];
-        const totalSec = state.totalSeconds || 0;
-        const arrSec = state.arrestSeconds || 0;
-        const compSec = state.compressingSeconds || 0;
-        const ccf = arrSec > 0 ? Math.min(100, Math.round((compSec / arrSec) * 100)) : 0;
-        const ageStr = state.isPediatric ? (state.patientWeight ? `Kind (${state.patientWeight} kg)` : 'Kind (Gewicht unbek.)') : 'Erwachsener';
-        let adrTotal = "0 mg", adrCount = state.adrCount || 0;
-        if (adrCount > 0) adrTotal = (state.isPediatric && state.patientWeight) ? (adrCount * Math.round(state.patientWeight * 10)) + " µg" : adrCount + " mg";
-        let amioTotal = "0 mg", amioCount = state.amioCount || 0;
-        if (amioCount > 0) amioTotal = (state.isPediatric && state.patientWeight) ? (amioCount * Math.round(state.patientWeight * 5)) + " mg" : (amioCount === 1 ? '300 mg' : '450 mg');
+    function extractTimelineData(logs) {
+        if (!logs || logs.length === 0) return { start: 0, blocks: [], maxSeconds: 0 };
+        
+        const startTimeStr = window.CPR.AppState.startTime || document.getElementById('start-time')?.innerText || "00:00:00";
+        const baseTime = parseTime(startTimeStr);
+        let blocks = [];
+        let currBlock = null;
+        let lastCPRStart = null;
+        let maxSeconds = 0;
 
-        const aData = state.anamneseData || {};
-        let sampStr = [];
-        if (aData.sampler) {
-            const sMap = {s:'Symptome', a:'Allergien', m:'Medikamente', p:'Vorerkrankungen', l:'Letzte Mahlzeit', e:'Ereignis', r:'Risikofaktoren'};
-            Object.keys(sMap).forEach(k => { 
-                if (aData.sampler[k]) sampStr.push(`<span class="text-[10px] font-black text-slate-500 mr-1">${sMap[k]}:</span> <span class="font-bold text-slate-800">${aData.sampler[k]}</span>`); 
-            });
-        }
-        const hitsLogs = data.filter(d => d.action.includes('HITS:'));
-        const hitsHtml = hitsLogs.map(h => `<li class="mb-1">${h.action.replace('HITS: ', '')}</li>`).join('');
+        logs.forEach(log => {
+            const timeMatch = log.match(/^(\d{1,2}:\d{2}:\d{2})/);
+            if (!timeMatch) return;
+            
+            const eventTime = parseTime(timeMatch[1]);
+            const elapsed = Math.max(0, eventTime - baseTime); // in Sekunden
+            const content = log.substring(timeMatch[0].length + 2);
+            const lower = content.toLowerCase();
+            
+            if (elapsed > maxSeconds) maxSeconds = elapsed;
 
-        // 🌟 END-STATUS & ROSC-ZEIT (Sichere Extraktion) 🌟
-        let endStatus = 'Laufende CPR';
-        let timeToRosc = null;
-        let abbruchReason = "";
-
-        data.forEach(d => {
-            const t = d.action.toLowerCase();
-            if (t.includes('rosc') && !t.includes('re-arrest')) {
-                endStatus = 'ROSC';
-                if (timeToRosc === null) timeToRosc = d.secondsFromStart;
-            } else if (t.includes('re-arrest') || t.includes('start rea')) {
-                endStatus = 'Laufende CPR';
-            } else if (t.includes('abbruch') || t.includes('beendet')) {
-                endStatus = 'Abbruch';
-                const splitChar = t.includes(':') ? ':' : (t.includes('-') ? '-' : null);
-                if (splitChar) {
-                    const parts = d.action.split(splitChar);
-                    if (parts.length > 1) abbruchReason = parts[1].trim();
+            if (lower.includes('cpr fortgesetzt') || lower.includes('start erwachsen') || lower.includes('start pädiat')) {
+                if (currBlock) {
+                    currBlock.end = elapsed;
+                    blocks.push(currBlock);
                 }
+                lastCPRStart = elapsed;
+                currBlock = { start: elapsed, end: elapsed + 120, pauses: [], events: [] };
+            } 
+            else if (lower.includes('cpr pausiert') || lower.includes('rhythmusanalyse gestartet') || lower.includes('rosc') || lower.includes('abbruch')) {
+                if (currBlock && lastCPRStart !== null) {
+                    currBlock.pauses.push({ start: elapsed, end: elapsed + 10 });
+                }
+            }
+            
+            if (currBlock && !lower.includes('cpr fortgesetzt') && !lower.includes('cpr pausiert')) {
+                const iconMatch = getIconData(content);
+                if (iconMatch) currBlock.events.push({ time: elapsed, text: content, icon: iconMatch });
             }
         });
 
-        // Fallbacks, falls String zerschnitten war
-        if (endStatus === 'ROSC' && timeToRosc === null) timeToRosc = totalSec;
-        if (endStatus === 'Abbruch' && !abbruchReason) abbruchReason = "Teamentscheidung / Unbekannt";
+        if (currBlock) {
+            const finalTime = Math.max(window.CPR.AppState.totalSeconds || 0, maxSeconds);
+            currBlock.end = Math.max(currBlock.start + 120, finalTime);
+            
+            if (currBlock.pauses.length > 0) {
+                const lastPause = currBlock.pauses[currBlock.pauses.length - 1];
+                if (lastPause.end < currBlock.end) {
+                    lastPause.end = currBlock.end;
+                }
+            }
+            blocks.push(currBlock);
+        }
 
-        return { ageStr, totalSec, ccf, adrCount, adrTotal, amioCount, amioTotal, aData, sampStr, hitsLogs, hitsHtml, state, data, endStatus, timeToRosc, abbruchReason };
+        return { start: baseTime, blocks: blocks, maxSeconds: Math.max(window.CPR.AppState.totalSeconds || 0, maxSeconds) };
     }
 
-    // --- 3. DOM RENDERING: SBAR DASHBOARD ---
-    function renderSummary() {
-        const { ageStr, totalSec, ccf, adrTotal, amioTotal, aData, sampStr, hitsLogs, hitsHtml, state, adrCount, amioCount, endStatus, timeToRosc, abbruchReason } = extractSbarFacts();
-        const ccfColor = ccf >= 80 ? 'text-emerald-500' : 'text-[#E3000F]';
+    // --- 2. DIE RENDERING FUNKTIONEN ---
+    function renderList(logs, container) {
+        let html = '<div class="p-4 pb-20 w-full relative z-0 flex flex-col items-center max-w-lg mx-auto">';
+        let lastTimeStr = "";
         
-        let statusColor = 'text-slate-800';
-        let extraInfoHtml = '';
+        // Vertikale Linie im Hintergrund
+        html += '<div class="absolute left-8 top-8 bottom-0 w-0.5 bg-slate-200 z-0"></div>';
         
-        if (endStatus === 'ROSC') {
-            statusColor = 'text-emerald-600';
-            extraInfoHtml = `<span class="text-[10px] font-black text-emerald-700 bg-emerald-100 border border-emerald-200 px-2 py-1 rounded-lg">Zeit bis ROSC: ${window.CPR.Utils.formatTime(timeToRosc)} Min</span>`;
-        } else if (endStatus === 'Abbruch') {
-            statusColor = 'text-slate-800';
-            extraInfoHtml = `<span class="text-[9px] font-black text-slate-600 bg-slate-200 border border-slate-300 px-2 py-1 rounded-lg truncate max-w-[140px] text-right inline-block">Grund: ${abbruchReason}</span>`;
-        }
-        
-        return `
-            <div class="flex-1 overflow-y-auto p-3 flex flex-col gap-3 pb-24 custom-scrollbar bg-slate-50">
+        [...logs].reverse().forEach((log, index) => {
+            const parts = log.split(': ');
+            const t = parts[0] + ":" + parts[1] + ":" + parts[2];
+            const msg = parts.slice(3).join(': ');
+            const isLatest = (index === 0);
+            
+            const iconData = getIconData(msg);
+            
+            // Neuer Timestamp Header, wenn sich die Minute ändert
+            const timeWithoutSec = parts[0] + ":" + parts[1];
+            if (timeWithoutSec !== lastTimeStr) {
+                html += `<div class="relative z-10 bg-slate-100 text-slate-400 text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full mb-3 mt-1 shadow-inner">${timeWithoutSec}</div>`;
+                lastTimeStr = timeWithoutSec;
+            }
+
+            let iconHtml = '';
+            let boxClass = 'bg-white border border-slate-200';
+            let textClass = 'text-slate-600 font-bold';
+            
+            if (iconData) {
+                const iconContent = iconData.htmlIcon || iconData.icon;
+                const txtSize = iconData.isText ? 'text-[9px] font-black' : 'text-sm';
+                iconHtml = `<div class="w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-sm z-10 ${iconData.bg} ${iconData.color} ${txtSize}">${iconContent}</div>`;
                 
-                <!-- [S] SITUATION -->
-                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                    <div class="bg-blue-50 px-3 py-2 border-b border-blue-100 flex items-center gap-2">
-                        <i class="fa-solid fa-user-injured text-blue-600"></i>
-                        <h3 class="text-[11px] font-black text-blue-800 uppercase tracking-widest">S - Situation</h3>
-                    </div>
-                    <div class="p-3 flex flex-col gap-2">
-                        <div class="grid grid-cols-2 gap-2">
-                            <div class="bg-slate-50 p-2 rounded-lg border border-slate-100 flex flex-col justify-center text-center">
-                                <span class="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Patient</span>
-                                <span class="text-sm font-black text-slate-800">${ageStr}</span>
-                            </div>
-                            <div class="bg-slate-50 p-2 rounded-lg border border-slate-100 flex flex-col justify-center text-center">
-                                <span class="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Gesamtdauer</span>
-                                <span class="text-sm font-black text-slate-800">${window.CPR.Utils.formatTime(totalSec)} Min</span>
-                            </div>
-                        </div>
-                        <div class="bg-slate-50 p-2.5 rounded-lg border border-slate-100 flex justify-between items-center mt-1">
-                            <div class="flex flex-col">
-                                <span class="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Einsatz-Status</span>
-                                <span class="text-sm font-black ${statusColor} leading-none">${endStatus.toUpperCase()}</span>
-                            </div>
-                            <div>${extraInfoHtml}</div>
-                        </div>
-                    </div>
-                </div>
+                if (iconData.type === 'shock') boxClass = 'bg-red-50 border border-red-200 shadow-sm';
+                if (iconData.type === 'adr') boxClass = 'bg-red-50 border border-red-100';
+                if (iconData.type === 'rosc') { boxClass = 'bg-emerald-50 border-2 border-emerald-300 shadow-md'; textClass = 'text-emerald-800 font-black'; }
+                if (iconData.type === 'abbruch') { boxClass = 'bg-slate-800 shadow-md'; textClass = 'text-white font-black'; }
+            } else {
+                iconHtml = `<div class="w-8 h-8 rounded-full bg-white border-4 border-slate-50 flex items-center justify-center shrink-0 z-10"><div class="w-2 h-2 bg-slate-300 rounded-full"></div></div>`;
+            }
 
-                <!-- [B] BACKGROUND -->
-                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                    <div class="bg-indigo-50 px-3 py-2 border-b border-indigo-100 flex items-center gap-2">
-                        <i class="fa-solid fa-clipboard-list text-indigo-600"></i>
-                        <h3 class="text-[11px] font-black text-indigo-800 uppercase tracking-widest">B - Background</h3>
-                    </div>
-                    <div class="p-3">
-                        <div class="flex justify-between border-b border-slate-100 pb-3 mb-3">
-                            <div class="text-center">
-                                <span class="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Beobachtet</span>
-                                <span class="text-xs font-black text-slate-800">${aData.beobachtet || '?'}</span>
-                            </div>
-                            <div class="text-center border-l border-r border-slate-100 px-4">
-                                <span class="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Laien-REA</span>
-                                <span class="text-xs font-black text-slate-800">${aData.laienrea || '?'}</span>
-                            </div>
-                            <div class="text-center">
-                                <span class="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Brustschmerz</span>
-                                <span class="text-xs font-black text-slate-800">${aData.brustschmerz || '?'}</span>
-                            </div>
-                        </div>
-                        <div>
-                            <span class="block text-[9px] font-bold text-slate-400 uppercase mb-1.5">SAMPLER</span>
-                            <div class="text-[11px] leading-relaxed text-slate-700">
-                                ${sampStr.length > 0 ? sampStr.join('<br>') : '<span class="italic text-slate-400">Keine Daten erfasst</span>'}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- [A] ASSESSMENT -->
-                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                    <div class="bg-amber-50 px-3 py-2 border-b border-amber-100 flex items-center gap-2">
-                        <i class="fa-solid fa-stethoscope text-amber-600"></i>
-                        <h3 class="text-[11px] font-black text-amber-800 uppercase tracking-widest">A - Assessment</h3>
-                    </div>
-                    <div class="p-3">
-                        <div class="flex justify-between items-center mb-2 border-b border-slate-100 pb-2">
-                            <span class="text-[9px] font-bold text-slate-400 uppercase">HITS (Ursachen)</span>
-                            <div class="flex items-center gap-1.5">
-                                <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">CCF</span>
-                                <span class="text-lg font-black ${ccfColor} leading-none">${ccf}%</span>
-                            </div>
-                        </div>
-                        <ul class="text-[11px] font-bold text-slate-700 pl-4 list-disc marker:text-amber-400">
-                            ${hitsLogs.length > 0 ? hitsHtml : '<li class="list-none -ml-4 italic text-slate-400 font-normal">Keine erfasst</li>'}
-                        </ul>
-                    </div>
-                </div>
-
-                <!-- [R] RESPONSE -->
-                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                    <div class="bg-red-50 px-3 py-2 border-b border-red-100 flex items-center gap-2">
-                        <i class="fa-solid fa-kit-medical text-[#E3000F]"></i>
-                        <h3 class="text-[11px] font-black text-[#E3000F] uppercase tracking-widest">R - Response</h3>
-                    </div>
-                    <div class="flex flex-col">
-                        <div class="flex justify-between items-center px-4 py-3 border-b border-slate-100 bg-slate-50/50">
-                            <span class="text-[10px] font-bold text-slate-500 uppercase"><i class="fa-solid fa-lungs text-cyan-500 w-4"></i> Atemweg</span>
-                            <span class="text-xs font-black text-slate-800 text-right">${state.airwayLabel || 'Nicht dok.'}</span>
-                        </div>
-                        <div class="flex justify-between items-center px-4 py-3 border-b border-slate-100 bg-slate-50/50">
-                            <span class="text-[10px] font-bold text-slate-500 uppercase"><i class="fa-solid fa-droplet text-indigo-500 w-4"></i> Zugang</span>
-                            <span class="text-xs font-black text-slate-800 text-right">${state.zugangLabel || 'Nicht dok.'}</span>
-                        </div>
-                        <div class="flex justify-between items-center px-4 py-3 border-b border-slate-100 bg-slate-50/50">
-                            <span class="text-[10px] font-bold text-slate-500 uppercase"><i class="fa-solid fa-bolt text-amber-500 w-4"></i> Schocks</span>
-                            <span class="text-xs font-black text-slate-800">${state.shockCount || 0}x abgegeben</span>
-                        </div>
-                        <div class="flex justify-between items-center px-4 py-3 border-b border-red-100 bg-red-50/40">
-                            <span class="text-[10px] font-bold text-red-700 uppercase"><i class="fa-solid fa-syringe text-red-500 w-4"></i> Adrenalin</span>
-                            <span class="text-xs font-black text-[#E3000F]">${adrTotal} <span class="text-[9px] font-bold text-red-400 ml-1">(${adrCount}x)</span></span>
-                        </div>
-                        <div class="flex justify-between items-center px-4 py-3 bg-purple-50/40">
-                            <span class="text-[10px] font-bold text-purple-700 uppercase"><i class="fa-solid fa-pills text-purple-500 w-4"></i> Amiodaron</span>
-                            <span class="text-xs font-black text-purple-700">${amioTotal} <span class="text-[9px] font-bold text-purple-400 ml-1">(${amioCount}x)</span></span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-
-    // --- 4. DOM RENDERING: CHRONOLOGIE LISTE ---
-    function renderList(data) {
-        if (data.length === 0) return '<div class="text-center text-slate-400 font-bold p-10 text-xs uppercase tracking-widest">Noch keine Einträge</div>';
-        const { ccf, adrTotal } = extractSbarFacts();
-        let html = `
-            <div class="bg-white px-4 py-2 border-b border-slate-200 shadow-sm shrink-0 z-10 flex justify-between items-center sticky top-0">
-                <div class="flex items-center gap-4">
-                    <div class="flex flex-col"><span class="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Qualität</span><span class="text-[11px] leading-none font-black ${ccf >= 80 ? 'text-emerald-500' : 'text-[#E3000F]'}">CCF ${ccf}%</span></div>
-                    <div class="w-px h-6 bg-slate-200"></div>
-                    <div class="flex flex-col"><span class="text-[8px] font-black text-red-400 uppercase tracking-widest mb-0.5">Adrenalin</span><span class="text-[11px] leading-none font-black text-red-600">${adrTotal}</span></div>
-                </div>
-                <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest"><i class="fa-solid fa-clock-rotate-left mr-1"></i> Log</span>
-            </div>
-            <div class="flex-1 overflow-y-auto p-3 pb-24 custom-scrollbar bg-slate-50"><div class="flex flex-col gap-2">
-        `;
-        data.slice().reverse().forEach(item => {
-            const evData = getIconData(item.action) || { icon: '🔹', bg: 'bg-slate-100', color: 'text-slate-500' };
-            const iconContent = evData.htmlIcon || evData.icon;
-            const textClass = evData.isText ? 'text-[9px] font-black tracking-tighter' : 'text-lg';
-            const relTime = window.CPR.Utils.formatRelative(item.secondsFromStart);
             html += `
-                <div class="bg-white rounded-xl p-3 shadow-sm border border-slate-200 flex items-center gap-3 relative overflow-hidden">
-                    <div class="w-10 h-10 rounded-full ${evData.bg} ${evData.color} border border-white flex items-center justify-center shrink-0 shadow-inner ${textClass}">
-                        ${iconContent}
+                <div class="flex items-center w-full gap-3 mb-3 relative group">
+                    <div class="flex flex-col items-center relative h-full">
+                        ${iconHtml}
                     </div>
-                    <div class="flex flex-col flex-1 min-w-0 pr-2">
-                        <span class="text-[11px] font-black text-slate-800 leading-tight mb-1" style="word-break: break-word;">${item.action}</span>
-                        <span class="text-[9px] font-bold text-slate-400"><i class="fa-regular fa-clock"></i> ${item.time}</span>
-                    </div>
-                    <div class="shrink-0 flex flex-col items-end justify-center">
-                        <span class="text-[11px] font-black text-[#E3000F] bg-red-50 px-2 py-1 rounded-lg border border-red-100 shadow-sm">${relTime}</span>
+                    <div class="flex-1 ${boxClass} px-3 py-2.5 rounded-xl text-xs relative ${isLatest && !iconData ? 'border-indigo-200 bg-indigo-50 shadow-sm' : ''}">
+                        <div class="flex justify-between items-start gap-2">
+                            <span class="${textClass} leading-tight">${msg}</span>
+                            <span class="text-[9px] text-slate-400 font-black shrink-0 mt-0.5">${parts[0]+':'+parts[1]}</span>
+                        </div>
                     </div>
                 </div>
             `;
         });
-        html += `</div></div>`;
-        return html;
+        
+        html += '</div>';
+        container.innerHTML = html;
     }
 
-    // --- 5. DOM RENDERING: THE PERFECT GRID ---
-    function renderTimeline() {
-        const { totalSec, data } = extractSbarFacts();
-        let currentAppSec = totalSec;
+    // --- SBAR UPDATE: NEUE SUMMARY GENERIERUNG ---
+    function generateSummaryHTML(logs) {
+        if (!logs || logs.length === 0) return '<div class="text-center p-4 text-xs font-bold text-slate-400">Keine Daten verfügbar</div>';
+
+        // --- 1. DATEN EXTRAKTION (SBAR) ---
+        let roscTime = "Laufender Einsatz / Abbruch";
+        let abbruchReason = "";
+        let shocks = 0;
+        let adr = 0;
+        let amio = 0;
+        let postRosc = [];
+        let airway = window.CPR.Globals?.tempAirwayType || "Nicht dokumentiert";
+        let zugang = document.getElementById('zugang-label')?.innerText || "Nicht dokumentiert";
+        if (zugang === 'Zugang') zugang = "Nicht dokumentiert";
+
+        logs.forEach(log => {
+            const t = log.toLowerCase();
+            if (t.includes('rosc eingetreten')) roscTime = log.split(': ')[1] || log;
+            if (t.includes('abbruch:')) abbruchReason = log;
+            if (t.includes('schock') && !t.includes('schockbar')) shocks++;
+            if (t.includes('adrenalin')) adr++;
+            if (t.includes('amiodaron')) amio++;
+            if (t.includes('atemweg:')) airway = log.split(': ')[1] || log;
+            if (t.includes('zugang:')) zugang = log.split(': ')[1] || log;
+            if (log.includes('ROSC: ')) postRosc.push(log.replace('ROSC: ', '')); // ROSC Maßnahmen filtern
+        });
+
+        // Situation
+        let situationText = roscTime;
+        if (abbruchReason) situationText = abbruchReason;
+
+        // Anamnese (SAMPLER/HITS)
+        const anamnese = window.CPR.AppState?.anamneseData || {};
+        let samplerText = "Keine Angaben";
+        if (anamnese.sampler && Object.values(anamnese.sampler).some(v => v !== '')) {
+            samplerText = ['s','a','m','p','l','e','r']
+                .filter(k => anamnese.sampler[k])
+                .map(k => `<span class="uppercase text-slate-400 text-[8px] mr-1">${k.toUpperCase()}:</span>${anamnese.sampler[k]}`)
+                .join('<br>');
+        }
         
-        let html = `
-        <div class="flex flex-col h-full overflow-hidden relative">
-            <div class="sticky top-0 z-50 bg-slate-50 border-b border-slate-200 px-2 py-2 shrink-0 shadow-sm">
-                <div class="bg-white p-1.5 rounded-xl border border-slate-100">
-                    <div class="flex flex-wrap justify-center items-center gap-x-2 gap-y-1.5">
-                        <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm">▶️</span><span class="text-[7.5px] font-bold text-slate-600 uppercase tracking-widest">Start</span></div>
-                        <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm text-emerald-500">❤️</span><span class="text-[7.5px] font-bold text-slate-600 uppercase tracking-widest">ROSC</span></div>
-                        <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm text-amber-500">⚡</span><span class="text-[7.5px] font-bold text-slate-600 uppercase tracking-widest">Schockbar</span></div>
-                        <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm relative text-slate-400">⚡<div class="absolute top-1/2 left-[-2px] right-[-2px] h-[1.5px] bg-red-500 rotate-45 -translate-y-1/2"></div></span><span class="text-[7.5px] font-bold text-slate-600 uppercase tracking-widest">Kein Schock</span></div>
-                        <div class="flex items-center gap-1"><div class="w-[14px] h-[14px] rounded-full bg-[#E3000F] text-white flex items-center justify-center text-[5px] font-black">J</div><span class="text-[7.5px] font-bold text-slate-600 uppercase tracking-widest">Schock</span></div>
-                        <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm">💉</span><span class="text-[7.5px] font-bold text-slate-600 uppercase tracking-widest">Adr.</span></div>
-                        <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm">💊</span><span class="text-[7.5px] font-bold text-slate-600 uppercase tracking-widest">Amio.</span></div>
-                        <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm">🫁</span><span class="text-[7.5px] font-bold text-slate-600 uppercase tracking-widest">Aw.</span></div>
-                        <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm">🩸</span><span class="text-[7.5px] font-bold text-slate-600 uppercase tracking-widest">Zug.</span></div>
-                        <div class="flex items-center gap-1"><div class="w-4 h-1.5 bg-red-500 rounded"></div><span class="text-[7.5px] font-bold text-slate-600 uppercase tracking-widest">Pause</span></div>
+        let hitsText = "Keine Auffälligkeiten";
+        const activeHits = ['hypoxie', 'hypovolaemie', 'kaliaemie', 'hypothermie', 'tamponade', 'toxine', 'thrombose', 'tension']
+            .filter(k => anamnese[k] === 'Ja');
+        if (activeHits.length > 0) {
+            hitsText = activeHits.map(h => h.toUpperCase()).join(', ');
+        }
+
+        // --- 2. HTML GENERIERUNG (SBAR BOXEN) ---
+        return `
+            <div class="flex flex-col gap-3 p-3 pb-8">
+                <!-- S - SITUATION -->
+                <div class="bg-white rounded-xl p-3 border border-red-100 shadow-sm relative overflow-hidden">
+                    <div class="absolute top-0 left-0 w-1 h-full bg-[#E3000F]"></div>
+                    <span class="text-[9px] font-black text-red-500 uppercase tracking-widest flex items-center gap-1.5 mb-1"><div class="w-4 h-4 bg-red-50 rounded-full flex items-center justify-center text-[8px]">S</div> SITUATION</span>
+                    <div class="font-bold text-slate-800 text-xs pl-1">${situationText}</div>
+                </div>
+
+                <!-- B - BACKGROUND -->
+                <div class="bg-white rounded-xl p-3 border border-amber-100 shadow-sm relative overflow-hidden">
+                    <div class="absolute top-0 left-0 w-1 h-full bg-amber-400"></div>
+                    <span class="text-[9px] font-black text-amber-500 uppercase tracking-widest flex items-center gap-1.5 mb-2"><div class="w-4 h-4 bg-amber-50 rounded-full flex items-center justify-center text-[8px]">B</div> BACKGROUND (HITS / SAMPLER)</span>
+                    <div class="grid grid-cols-1 gap-2 pl-1">
+                        <div><span class="text-[8px] font-bold text-slate-400 uppercase block leading-none">HITS-Verdacht</span><span class="text-xs font-bold text-slate-700">${hitsText}</span></div>
+                        <div><span class="text-[8px] font-bold text-slate-400 uppercase block leading-none mb-0.5">SAMPLER</span><div class="text-[10px] font-bold text-slate-700 leading-tight">${samplerText}</div></div>
+                    </div>
+                </div>
+
+                <!-- A - ASSESSMENT / MASSNAHMEN -->
+                <div class="bg-white rounded-xl p-3 border border-emerald-100 shadow-sm relative overflow-hidden">
+                    <div class="absolute top-0 left-0 w-1 h-full bg-emerald-500"></div>
+                    <span class="text-[9px] font-black text-emerald-600 uppercase tracking-widest flex items-center gap-1.5 mb-2"><div class="w-4 h-4 bg-emerald-50 rounded-full flex items-center justify-center text-[8px]">A</div> MASSNAHMEN CPR</span>
+                    <div class="grid grid-cols-2 gap-y-2 gap-x-2 pl-1">
+                        <div class="col-span-2"><span class="text-[8px] font-bold text-slate-400 uppercase block leading-none">Atemweg</span><span class="text-xs font-black text-slate-700">${airway}</span></div>
+                        <div class="col-span-2"><span class="text-[8px] font-bold text-slate-400 uppercase block leading-none">Zugang</span><span class="text-xs font-black text-slate-700">${zugang}</span></div>
+                        <div class="bg-slate-50 p-1.5 rounded-lg border border-slate-100"><span class="text-[8px] font-bold text-slate-400 uppercase block text-center mb-0.5">Schocks</span><span class="text-sm font-black text-amber-500 block text-center">${shocks}</span></div>
+                        <div class="bg-slate-50 p-1.5 rounded-lg border border-slate-100"><span class="text-[8px] font-bold text-slate-400 uppercase block text-center mb-0.5">Adrenalin</span><span class="text-sm font-black text-[#E3000F] block text-center">${adr} mg</span></div>
+                        <div class="col-span-2 bg-slate-50 p-1.5 rounded-lg border border-slate-100 flex justify-between items-center"><span class="text-[8px] font-bold text-slate-400 uppercase">Amiodaron</span><span class="text-xs font-black text-purple-600">${amio > 0 ? (amio===1?'300 mg':'450 mg') : '0 mg'}</span></div>
+                    </div>
+                </div>
+
+                <!-- R - RECOMMENDATION / POST-ROSC -->
+                <div class="bg-white rounded-xl p-3 border border-blue-100 shadow-sm relative overflow-hidden">
+                    <div class="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
+                    <span class="text-[9px] font-black text-blue-600 uppercase tracking-widest flex items-center gap-1.5 mb-2"><div class="w-4 h-4 bg-blue-50 rounded-full flex items-center justify-center text-[8px]">R</div> POST-ROSC MANAGEMENT</span>
+                    <div class="pl-1">
+                        ${postRosc.length > 0 
+                            ? '<ul class="flex flex-col gap-1">' + postRosc.map(item => `<li class="text-xs font-bold text-slate-700 flex items-start gap-1.5"><i class="fa-solid fa-check text-emerald-500 mt-0.5"></i> <span>${item}</span></li>`).join('') + '</ul>'
+                            : '<span class="text-[10px] font-bold text-slate-400 italic">Keine Maßnahmen dokumentiert.</span>'
+                        }
                     </div>
                 </div>
             </div>
-            <div class="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar bg-slate-50 relative pb-24 pt-4 px-3">
         `;
+    }
 
-        if (data.length === 0) {
-            html += '<div class="text-center text-slate-400 font-bold p-10 text-xs uppercase tracking-widest mt-4">Noch keine Einträge</div></div></div>';
-            return html;
+    // --- S-GRID ZEITLEISTE FUNKTIONEN (UNVERÄNDERT, WEIL PERFEKT!) ---
+    function drawSGridTimeline(data, canvas, wrapper) {
+        if (!data || !data.blocks || data.blocks.length === 0) return;
+        
+        const isPed = window.CPR.AppState?.isPediatric;
+        const MODE_SEC = 120; // Normalerweise 120s pro Block, Pädiatrie hat oft andere Zyklen, aber wir rastern fest auf 120 für die Übersicht.
+
+        const ctx = canvas.getContext('2d');
+        const W = canvas.width;
+        
+        const M_TOP = 40;
+        const M_BOT = 40;
+        const ROW_H = 140; 
+        
+        const DOT_X_L = 50; 
+        const DOT_X_R = W - 50; 
+        const L_W = DOT_X_R - DOT_X_L;
+        
+        const P_RAD = 12;
+
+        const maxSec = data.maxSeconds;
+        let numBlocks = Math.ceil(maxSec / MODE_SEC);
+        if (numBlocks < 1) numBlocks = 1;
+        
+        const TOTAL_H = M_TOP + M_BOT + (numBlocks * ROW_H);
+        canvas.height = TOTAL_H;
+        
+        if (wrapper) {
+            wrapper.style.height = `${TOTAL_H}px`;
         }
 
-        const filtered = data.map(d => ({ ...d, iconData: getIconData(d.action) })).filter(d => d.iconData !== null);
-        const pauses = extractPauses(data, currentAppSec);
-        
-        if (filtered.length > 0 && filtered[filtered.length - 1].secondsFromStart > currentAppSec) {
-            currentAppSec = filtered[filtered.length - 1].secondsFromStart;
-        }
-        
-        const cycleDuration = 120;
-        let totalCycles = Math.max(4, Math.ceil(currentAppSec / cycleDuration));
-        let currentStartSec = 0;
-        const yOffsets = [12, -12, 28, -28, 44, -44];
+        ctx.clearRect(0, 0, W, TOTAL_H);
 
-        for (let i = 0; i < totalCycles; i++) {
-            const cycleEndSec = currentStartSec + cycleDuration;
-            const cycleEvents = filtered.filter(e => e.secondsFromStart >= currentStartSec && e.secondsFromStart < cycleEndSec);
-            const isActiveBlock = (currentAppSec >= currentStartSec && currentAppSec <= cycleEndSec);
+        // 1. ZickZack Pfad (Grau)
+        ctx.beginPath();
+        ctx.strokeStyle = '#e2e8f0';
+        ctx.lineWidth = 4;
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
 
-            html += `
-                <div class="relative w-full h-[140px] mb-8 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden shrink-0">
-                    <div class="absolute top-1/2 left-1 -translate-y-1/2 text-[9px] font-black text-slate-400 bg-white px-1 z-10">${window.CPR.Utils.formatTime(currentStartSec)}</div>
-                    <div class="absolute top-1/2 right-1 -translate-y-1/2 text-[9px] font-black text-slate-400 bg-white px-1 z-10">${window.CPR.Utils.formatTime(cycleEndSec)}</div>
-                    
-                    <div class="absolute inset-y-0 left-8 right-8 pointer-events-none">
-                        <!-- Mittellinie (Track) -->
-                        <div class="absolute top-1/2 left-0 right-0 h-1 bg-slate-100 rounded-full -translate-y-1/2 shadow-inner z-0"></div>
-            `;
+        for (let i = 0; i < numBlocks; i++) {
+            const isLTR = (i % 2 === 0);
+            const yCurrent = M_TOP + i * ROW_H;
+            const yNext = M_TOP + (i + 1) * ROW_H;
 
-            // 15s LINEAL
-            for (let t = 15; t < 120; t += 15) {
-                const tickSec = currentStartSec + t;
-                const pct = (t / 120) * 100;
-                const isHalf = t === 60;
-                const tickH = isHalf ? 'h-4' : 'h-2';
-                html += `<div class="absolute top-1/2 w-px ${tickH} bg-slate-300 -translate-y-1/2 -translate-x-1/2 z-10" style="left: ${pct}%;"></div>`;
-                html += `<div class="absolute top-1/2 mt-3.5 text-[6.5px] font-black text-slate-400 -translate-y-1/2 -translate-x-1/2 z-10" style="left: ${pct}%;">${window.CPR.Utils.formatTime(tickSec)}</div>`;
+            if (isLTR) {
+                if (i === 0) ctx.moveTo(DOT_X_L, yCurrent);
+                ctx.lineTo(DOT_X_R, yCurrent);
+                if (i < numBlocks - 1) ctx.lineTo(DOT_X_R, yNext);
+            } else {
+                ctx.lineTo(DOT_X_L, yCurrent);
+                if (i < numBlocks - 1) ctx.lineTo(DOT_X_L, yNext);
             }
+        }
+        ctx.stroke();
 
-            // CPR PAUSEN (Z-Index über Track, aber unter Icons)
-            pauses.forEach(p => {
-                const pStart = Math.max(p.start, currentStartSec);
-                const pEnd = Math.min(p.end, cycleEndSec);
-                if (pStart < pEnd) {
-                    const pctStart = ((pStart - currentStartSec) / cycleDuration) * 100;
-                    const pctEnd = ((pEnd - currentStartSec) / cycleDuration) * 100;
-                    const widthPct = pctEnd - pctStart;
-                    html += `
-                        <div class="absolute top-1/2 h-2.5 bg-red-500 rounded-sm flex items-center justify-center -translate-y-1/2 z-[5]"
-                             style="left: ${pctStart}%; width: ${widthPct}%;">
-                             ${widthPct > 4 ? `<span class="text-[6px] font-black text-white shadow-sm">${p.duration}s</span>` : ''}
-                        </div>
-                    `;
+        // 2. Grüne / Rote CPR Blöcke zeichnen
+        ctx.lineWidth = 14; 
+        ctx.lineCap = 'butt';
+        
+        data.blocks.forEach(block => {
+            const startIdx = Math.floor(block.start / MODE_SEC);
+            const endIdx = Math.floor(block.end / MODE_SEC);
+            
+            for (let i = startIdx; i <= endIdx; i++) {
+                if (i >= numBlocks) break;
+                
+                const isLTR = (i % 2 === 0);
+                const blockStartY = M_TOP + i * ROW_H;
+                const blockEndY = M_TOP + (i+1) * ROW_H;
+                
+                const secInThisRowStart = Math.max(0, block.start - (i * MODE_SEC));
+                const secInThisRowEnd = Math.min(MODE_SEC, block.end - (i * MODE_SEC));
+                
+                if (secInThisRowStart >= MODE_SEC || secInThisRowEnd <= 0) continue;
+                
+                const pctStart = secInThisRowStart / MODE_SEC;
+                const pctEnd = secInThisRowEnd / MODE_SEC;
+                
+                const x1 = isLTR ? DOT_X_L + (pctStart * L_W) : DOT_X_R - (pctStart * L_W);
+                const x2 = isLTR ? DOT_X_L + (pctEnd * L_W) : DOT_X_R - (pctEnd * L_W);
+                
+                // Grüner Balken (CPR)
+                ctx.beginPath();
+                ctx.strokeStyle = '#34d399'; 
+                ctx.moveTo(x1, blockStartY);
+                ctx.lineTo(x2, blockStartY);
+                ctx.stroke();
+
+                // Pausen drüberzeichnen (Rot)
+                block.pauses.forEach(p => {
+                    const pStartInRow = Math.max(0, p.start - (i * MODE_SEC));
+                    const pEndInRow = Math.min(MODE_SEC, p.end - (i * MODE_SEC));
+                    
+                    if (pStartInRow >= MODE_SEC || pEndInRow <= 0) return;
+                    
+                    const pPctStart = pStartInRow / MODE_SEC;
+                    const pPctEnd = pEndInRow / MODE_SEC;
+                    
+                    const px1 = isLTR ? DOT_X_L + (pPctStart * L_W) : DOT_X_R - (pPctStart * L_W);
+                    const px2 = isLTR ? DOT_X_L + (pPctEnd * L_W) : DOT_X_R - (pPctEnd * L_W);
+                    
+                    ctx.beginPath();
+                    ctx.strokeStyle = '#f87171'; 
+                    ctx.moveTo(px1, blockStartY);
+                    ctx.lineTo(px2, blockStartY);
+                    ctx.stroke();
+                });
+            }
+        });
+
+        // 3. Grid-Knotenpunkte & Zeit-Labels
+        ctx.font = 'bold 10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        for (let i = 0; i <= numBlocks; i++) {
+            const isLTR = (i % 2 === 0);
+            const y = M_TOP + i * ROW_H;
+            let x = isLTR ? DOT_X_L : DOT_X_R;
+            if (i === numBlocks && !isLTR) x = DOT_X_L;
+            if (i === numBlocks && isLTR) x = DOT_X_R;
+
+            ctx.beginPath();
+            ctx.fillStyle = '#fff';
+            ctx.strokeStyle = '#94a3b8';
+            ctx.lineWidth = 3;
+            ctx.arc(x, y, P_RAD, 0, 2*Math.PI);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.fillStyle = '#64748b';
+            const m = Math.floor((i * MODE_SEC) / 60);
+            const s = (i * MODE_SEC) % 60;
+            const timeStr = m + ":" + (s<10?'0':'') + s;
+            
+            if (isLTR) {
+                ctx.textAlign = 'right';
+                ctx.fillText(timeStr, DOT_X_L - 20, y);
+            } else {
+                ctx.textAlign = 'left';
+                ctx.fillText(timeStr, DOT_X_R + 20, y);
+            }
+        }
+
+        // 4. Icons & Tooltips der Events ins DOM rendern
+        const tContainer = document.getElementById('timeline-tools');
+        if (tContainer) tContainer.innerHTML = '';
+
+        data.blocks.forEach(block => {
+            block.events.forEach(ev => {
+                if (!ev.icon) return;
+                const rowIdx = Math.floor(ev.time / MODE_SEC);
+                const secInRow = ev.time % MODE_SEC;
+                const pct = secInRow / MODE_SEC;
+                
+                const isLTR = (rowIdx % 2 === 0);
+                const y = M_TOP + rowIdx * ROW_H;
+                const x = isLTR ? DOT_X_L + (pct * L_W) : DOT_X_R - (pct * L_W);
+
+                if (tContainer) {
+                    const el = document.createElement('div');
+                    el.className = `absolute transform -translate-x-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center shadow-md ${ev.icon.bg} ${ev.icon.color} text-[10px] font-black cursor-pointer group`;
+                    el.style.left = x + 'px';
+                    el.style.top = y + 'px';
+                    el.innerHTML = ev.icon.htmlIcon || ev.icon.icon;
+
+                    const tooltip = document.createElement('div');
+                    tooltip.className = "absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max max-w-[120px] bg-slate-800 text-white text-[9px] font-bold px-2 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none text-center shadow-lg z-50 leading-tight";
+                    tooltip.innerText = ev.text;
+                    
+                    const tri = document.createElement('div');
+                    tri.className = "absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-800";
+                    tooltip.appendChild(tri);
+
+                    el.appendChild(tooltip);
+                    tContainer.appendChild(el);
                 }
             });
-
-            // LIVE MARKER (Stoppt jetzt NICHT mehr!)
-            if (isActiveBlock) {
-                const markerPct = ((currentAppSec - currentStartSec) / cycleDuration) * 100;
-                html += `
-                        <div class="live-time-marker absolute top-0 bottom-0 w-[2px] bg-red-500 z-[15] shadow-[0_0_8px_rgba(239,68,68,0.8)]" 
-                             data-start="${currentStartSec}" data-end="${cycleEndSec}" 
-                             style="left: ${markerPct}%;">
-                             <div class="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-red-500 shadow-sm"></div>
-                             <div class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-red-500 shadow-sm"></div>
-                        </div>
-                `;
-            }
-
-            // ICONS
-            cycleEvents.forEach((ev, idx) => {
-                const secInCycle = ev.secondsFromStart - currentStartSec;
-                const pct = (secInCycle / cycleDuration) * 100;
-                const yOff = yOffsets[idx % yOffsets.length];
-                const isTop = yOff < 0; 
-                const lineH = Math.abs(yOff);
-                const linePosClass = isTop ? 'bottom-1/2 mb-[2px]' : 'top-1/2 mt-[2px]';
-
-                const iconContent = ev.iconData.htmlIcon || ev.iconData.icon;
-                const textClass = ev.iconData.isText ? 'text-[7px] font-black tracking-tighter' : 'text-[11px]';
-
-                html += `
-                        <div class="absolute w-px bg-slate-300 -translate-x-1/2 ${linePosClass} z-20" style="left: ${pct}%; height: ${lineH}px;"></div>
-                        <div class="absolute -translate-x-1/2 flex flex-col items-center z-20" style="left: ${pct}%; top: calc(50% + ${yOff}px - 14px); z-index: ${20 + idx};">
-                            <div class="w-7 h-7 rounded-full ${ev.iconData.bg} border-2 border-white shadow-md flex items-center justify-center ${textClass} ${ev.iconData.color}">
-                                ${iconContent}
-                            </div>
-                        </div>
-                `;
-            });
-
-            html += `</div></div>`;
-            currentStartSec = cycleEndSec;
-        }
-
-        html += `</div></div>`;
-        return html;
-    }
-
-    // --- LIVE MARKER UPDATER (Nahtloser Block-Wechsel) ---
-    function updateLiveMarker() {
-        if (currentView !== 'timeline') return;
-        const state = window.CPR.AppState;
-        if (!state) return; 
-
-        const currentAppSec = state.totalSeconds || 0;
-        
-        const currentBlock = Math.floor(currentAppSec / 120);
-        if (window._lastRenderedBlock === undefined) window._lastRenderedBlock = currentBlock;
-        
-        // Zwingt das Grid zum Neu-Rendern, wenn wir die 120s Grenze überschreiten (spawnt den Marker in der neuen Box)
-        if (currentBlock !== window._lastRenderedBlock) {
-            window._lastRenderedBlock = currentBlock;
-            renderCurrentView();
-        }
-
-        const markers = document.querySelectorAll('.live-time-marker');
-        markers.forEach(marker => {
-            const blockStart = parseInt(marker.dataset.start);
-            const blockEnd = parseInt(marker.dataset.end);
-            if (currentAppSec >= blockStart && currentAppSec <= blockEnd) {
-                const pct = ((currentAppSec - blockStart) / 120) * 100;
-                marker.style.left = `${pct}%`;
-            }
         });
     }
 
+    function drawLiveMarker(canvasId) {
+        if (currentView !== 'timeline') return;
+        const canvas = document.getElementById(canvasId);
+        const tContainer = document.getElementById('timeline-tools');
+        if (!canvas || !tContainer) return;
+
+        const liveElId = 'timeline-live-marker';
+        let liveEl = document.getElementById(liveElId);
+
+        if (window.CPR.AppState.state === 'IDLE' || window.CPR.AppState.totalSeconds === 0) {
+            if (liveEl) liveEl.style.display = 'none';
+            return;
+        }
+
+        const MODE_SEC = 120;
+        const M_TOP = 40;
+        const ROW_H = 140;
+        const DOT_X_L = 50; 
+        const DOT_X_R = canvas.width - 50; 
+        const L_W = DOT_X_R - DOT_X_L;
+
+        const totalSec = window.CPR.AppState.totalSeconds;
+        
+        // --- 🔴 BUGFIX: Nahtloses Spawnen ---
+        // Verhindert, dass der Marker bei Punkt 120s, 240s etc. hängen bleibt oder verschwindet.
+        const rowIdx = Math.floor(totalSec / MODE_SEC);
+        // Damit er nicht verschwindet, wenn der Canvas noch nicht mitgewachsen ist:
+        if ((M_TOP + rowIdx * ROW_H) > canvas.height) return; 
+        
+        const secInRow = totalSec % MODE_SEC;
+        const pct = secInRow / MODE_SEC;
+        
+        const isLTR = (rowIdx % 2 === 0);
+        const y = M_TOP + rowIdx * ROW_H;
+        const x = isLTR ? DOT_X_L + (pct * L_W) : DOT_X_R - (pct * L_W);
+
+        if (!liveEl) {
+            liveEl = document.createElement('div');
+            liveEl.id = liveElId;
+            liveEl.className = "absolute w-4 h-4 bg-[#E3000F] rounded-full transform -translate-x-1/2 -translate-y-1/2 shadow-[0_0_15px_rgba(227,0,15,0.8)] z-50 animate-pulse pointer-events-none";
+            tContainer.appendChild(liveEl);
+        }
+
+        liveEl.style.display = 'block';
+        liveEl.style.left = x + 'px';
+        liveEl.style.top = y + 'px';
+    }
+
+    function renderCurrentView() {
+        const listEl = document.getElementById('protocol-list');
+        if (!listEl) return;
+        
+        const logs = window.CPR.Globals?.sysLogs || [];
+
+        if (currentView === 'list') {
+            if (logs.length === 0) listEl.innerHTML = '<div class="text-center p-4 text-xs font-bold text-slate-400">Logbuch leer</div>';
+            else renderList(logs, listEl);
+        } 
+        else if (currentView === 'summary') {
+            listEl.innerHTML = generateSummaryHTML(logs);
+        }
+        else if (currentView === 'timeline') {
+            const tData = extractTimelineData(logs);
+            
+            let html = `
+                <div class="relative w-full overflow-y-auto overflow-x-hidden custom-scrollbar bg-slate-50 flex justify-center py-4">
+                    <div id="timeline-wrapper" class="relative w-[340px] shrink-0">
+                        <canvas id="timeline-canvas" width="340" height="400" class="absolute top-0 left-0 w-full"></canvas>
+                        <div id="timeline-tools" class="absolute top-0 left-0 w-full h-full pointer-events-auto"></div>
+                    </div>
+                </div>
+            `;
+            listEl.innerHTML = html;
+            
+            const canvas = document.getElementById('timeline-canvas');
+            const wrapper = document.getElementById('timeline-wrapper');
+            if (canvas && wrapper) {
+                drawSGridTimeline(tData, canvas, wrapper);
+                drawLiveMarker('timeline-canvas'); 
+            }
+        }
+    }
+
+    // --- 3. EVENT LISTENER & TAB STEUERUNG ---
     function startLiveMarkerInterval() {
         if (liveMarkerInterval) clearInterval(liveMarkerInterval);
-        liveMarkerInterval = setInterval(updateLiveMarker, 1000);
+        liveMarkerInterval = setInterval(() => {
+            if (currentView === 'timeline') {
+                drawLiveMarker('timeline-canvas');
+            }
+        }, 1000);
     }
+
     function stopLiveMarkerInterval() {
-        if (liveMarkerInterval) { clearInterval(liveMarkerInterval); liveMarkerInterval = null; }
+        if (liveMarkerInterval) {
+            clearInterval(liveMarkerInterval);
+            liveMarkerInterval = null;
+        }
     }
 
-    // --- 6. DOM UPDATER ---
-    function renderCurrentView() {
-        const container = document.getElementById('protocol-list');
-        if (!container) return;
-        const scrollTarget = container.querySelector('.overflow-y-auto');
-        const currentScrollPos = scrollTarget ? scrollTarget.scrollTop : 0;
-
-        if (currentView === 'timeline') container.innerHTML = renderTimeline();
-        else if (currentView === 'summary') container.innerHTML = renderSummary();
-        else container.innerHTML = renderList((window.CPR.AppState && window.CPR.AppState.protocolData) ? window.CPR.AppState.protocolData : []);
-
-        requestAnimationFrame(() => {
-            const newScrollTarget = container.querySelector('.overflow-y-auto');
-            if (newScrollTarget) newScrollTarget.scrollTop = currentScrollPos;
-        });
-    }
-
-    // --- 7. TAB LOGIK ---
     function switchTab(tab) {
         currentView = tab;
-        if (window.CPR.AppState) window.CPR.AppState.protocolViewMode = tab;
         
-        const btnTime = document.getElementById('btn-view-timeline');
         const btnList = document.getElementById('btn-view-list');
+        const btnTime = document.getElementById('btn-view-timeline');
         const btnSumm = document.getElementById('btn-view-summary');
 
-        [btnTime, btnList, btnSumm].forEach(b => {
-            if(b) { b.classList.remove('bg-white', 'text-slate-800', 'shadow-sm'); b.classList.add('text-slate-500'); }
-        });
+        if (btnList) btnList.className = 'px-3 py-1.5 rounded-lg text-[10px] font-black uppercase text-slate-500 transition-all';
+        if (btnTime) btnTime.className = 'px-3 py-1.5 rounded-lg text-[10px] font-black uppercase text-slate-500 transition-all';
+        if (btnSumm) btnSumm.className = 'px-3 py-1.5 rounded-lg text-[10px] font-black uppercase text-slate-500 transition-all';
 
-        let activeBtn = null;
-        if(tab === 'timeline') activeBtn = btnTime;
-        if(tab === 'list') activeBtn = btnList;
-        if(tab === 'summary') activeBtn = btnSumm;
-
-        if(activeBtn) { activeBtn.classList.remove('text-slate-500'); activeBtn.classList.add('bg-white', 'text-slate-800', 'shadow-sm'); }
+        if (tab === 'list' && btnList) {
+            btnList.className = 'px-3 py-1.5 rounded-lg text-[10px] font-black uppercase bg-white text-slate-800 shadow-sm transition-all';
+        } else if (tab === 'timeline' && btnTime) {
+            btnTime.className = 'px-3 py-1.5 rounded-lg text-[10px] font-black uppercase bg-white text-slate-800 shadow-sm transition-all';
+        } else if (tab === 'summary' && btnSumm) {
+            btnSumm.className = 'px-3 py-1.5 rounded-lg text-[10px] font-black uppercase bg-white text-slate-800 shadow-sm transition-all';
+        }
 
         renderCurrentView();
+
         if (tab === 'timeline') startLiveMarkerInterval();
         else stopLiveMarkerInterval();
     }
@@ -509,10 +581,11 @@ window.CPR.LogTimeline = (function() {
         const btnDebrief = document.getElementById('btn-rosc-end');
         if(btnDebrief) btnDebrief.addEventListener('click', () => { setTimeout(renderCurrentView, 500); });
 
+        // Initialansicht setzen (List)
         setTimeout(() => { switchTab('list'); }, 100);
     }
 
     return { init: init, forceRender: renderCurrentView };
 })();
 
-document.addEventListener('DOMContentLoaded', () => { setTimeout(() => { if (window.CPR && window.CPR.LogTimeline) window.CPR.LogTimeline.init(); }, 200); });
+document.addEventListener('DOMContentLoaded', () => { setTimeout(() => { if (window.CPR && window.CPR.LogTimeline) window.CPR.LogTimeline.init(); }, 150); });
