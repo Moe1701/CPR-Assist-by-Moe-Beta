@@ -1,9 +1,8 @@
 /**
- * CPR Assist - Log Timeline Modul (V42 - Medical Dashboard & Legend Update)
- * - MEDIZINISCHES UX-UPDATE: Der Übergabe-Screen (SBAR) wurde komplett neu designt!
- * Anstelle von dicken Boxen gibt es nun lesbare "Klinik-Akten", bei denen
- * nichts mehr gequetscht wird oder aus dem Bildschirm ragt.
- * - LEGENDE: Amiodaron (💊) zur Legende hinzugefügt.
+ * CPR Assist - Log Timeline Modul (V43 - Layout Clipping Fix)
+ * - BUGFIX: CCF-Wert im SBAR-Dashboard wird auf Android nicht mehr abgeschnitten.
+ * Das Layout nutzt nun ein stabiles CSS-Grid und sichere Line-Heights.
+ * - UX: Boxen wachsen bei mehr Inhalt (z.B. vielen HITS) automatisch mit.
  */
 
 window.CPR = window.CPR || {};
@@ -91,7 +90,7 @@ window.CPR.LogTimeline = (function() {
         return { ageStr, totalSec, ccf, adrCount, adrTotal, amioCount, amioTotal, aData, sampStr, hitsLogs, hitsHtml, state, data };
     }
 
-    // --- 3. DOM RENDERING: SBAR DASHBOARD (NEUES DESIGN) ---
+    // --- 3. DOM RENDERING: SBAR DASHBOARD ---
     function renderSummary() {
         const { ageStr, totalSec, ccf, adrCount, adrTotal, amioCount, amioTotal, aData, sampStr, hitsLogs, hitsHtml, state } = extractSbarFacts();
         const ccfColor = ccf >= 80 ? 'text-emerald-500' : 'text-[#E3000F]';
@@ -151,22 +150,22 @@ window.CPR.LogTimeline = (function() {
                     </div>
                 </div>
 
-                <!-- [A] ASSESSMENT -->
+                <!-- [A] ASSESSMENT (Fix: Grid Layout statt Flex um Clipping zu verhindern) -->
                 <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                     <div class="bg-amber-50 px-3 py-2 border-b border-amber-100 flex items-center gap-2">
                         <i class="fa-solid fa-stethoscope text-amber-600"></i>
                         <h3 class="text-[11px] font-black text-amber-800 uppercase tracking-widest">A - Assessment</h3>
                     </div>
-                    <div class="p-3 flex gap-4">
-                        <div class="flex-1">
+                    <div class="p-3 grid grid-cols-3 gap-3">
+                        <div class="col-span-2 flex flex-col justify-center">
                             <span class="block text-[9px] font-bold text-slate-400 uppercase mb-1.5">HITS (Ursachen)</span>
                             <ul class="text-[11px] font-bold text-slate-700 pl-4 list-disc marker:text-amber-400">
                                 ${hitsLogs.length > 0 ? hitsHtml : '<li class="list-none -ml-4 italic text-slate-400 font-normal">Keine erfasst</li>'}
                             </ul>
                         </div>
-                        <div class="shrink-0 flex flex-col items-center justify-center bg-slate-50 px-4 py-2 rounded-xl border border-slate-100 min-w-[70px]">
-                            <span class="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">CCF</span>
-                            <span class="text-2xl font-black ${ccfColor}">${ccf}%</span>
+                        <div class="bg-slate-50 p-2 rounded-xl border border-slate-100 text-center flex flex-col justify-center min-h-[65px]">
+                            <span class="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">CCF</span>
+                            <span class="text-2xl font-black ${ccfColor} leading-none py-1">${ccf}%</span>
                         </div>
                     </div>
                 </div>
@@ -248,7 +247,6 @@ window.CPR.LogTimeline = (function() {
         const { totalSec, data } = extractSbarFacts();
         let currentAppSec = totalSec;
         
-        // VOLLSTÄNDIGE LEGENDE (Inklusive Amiodaron)
         let html = `
         <div class="flex flex-col h-full overflow-hidden relative">
             <div class="sticky top-0 z-50 bg-slate-50 border-b border-slate-200 px-2 py-2 shrink-0 shadow-sm">
