@@ -1,9 +1,8 @@
 /**
- * CPR Assist - Export Modul (V50 - NATIVE OS PDF ENGINE)
- * - ARCHITEKTUR-WECHSEL: html2canvas wurde durch die Native Print API (Iframe) ersetzt!
- * - BUGFIX: Keine leeren Seiten oder "setEnd" Abstürze mehr auf Android.
- * - UX: Öffnet den nativen "Als PDF Speichern / Teilen" Dialog des Betriebssystems.
- * - VORTEIL: Erzeugt gestochen scharfe Vektor-PDFs mit echten Seitenumbrüchen.
+ * CPR Assist - Export Modul (V44 - The Bulletproof Overlay Fix)
+ * - BUGFIX 1 (Leere PDFs): Das PDF wird nun ZWISCHEN einem Ladebildschirm und der App gerendert. 
+ * Dies zwingt Android dazu, die Pixel vollständig zu zeichnen, verhindert aber, dass der User das Flackern sieht.
+ * - BUGFIX 2 (Eine Riesenseite): Strikte .page-break Klassen zwingen die Engine in saubere A4 Seiten.
  */
 
 window.CPR = window.CPR || {};
@@ -87,7 +86,6 @@ window.CPR.Export = (function() {
         return { ageStr, totalSec, ccf, adrCount, adrTotal, amioCount, amioTotal, aData, sampStr, hitsLogs, hitsHtml, state };
     }
 
-    // NATIVES HTML FÜR DEN DRUCK
     function generateSbarHtml() {
         const { ageStr, totalSec, ccf, adrTotal, amioTotal, aData, sampStr, hitsLogs, hitsHtml, state, adrCount, amioCount } = extractSbarFacts();
         const Utils = window.CPR.Utils;
@@ -147,7 +145,6 @@ window.CPR.Export = (function() {
     }
 
     // --- 4. CANVAS NOTENBLATT ENGINE ---
-    // (Das Canvas generieren wir in Memory, das ist extrem stabil, und fügen es als Bild in den Print ein)
     function createTimelineCanvas(data) {
         const events = data.map(d => ({ ...d, iconData: getIconData(d.action), timeStr: window.CPR.Utils.formatRelative(d.secondsFromStart) })).filter(d => d.iconData !== null);
         const maxSec = data.length > 0 ? data[data.length - 1].secondsFromStart : 0;
@@ -274,85 +271,96 @@ window.CPR.Export = (function() {
         return canvas;
     }
 
-    // --- 5. NATIVE PDF GENERIERUNG (Der finale Fix) ---
+    // --- 5. PDF GENERIERUNG (Der Bulletproof Overlay Fix) ---
     function generatePdfExport() {
         const { AppState, Utils } = window.CPR;
         if (!AppState || !AppState.protocolData || AppState.protocolData.length === 0) { alert("Das Protokoll ist leer."); return; }
-
-        const btnPdf = document.getElementById('btn-run-pdf-export');
-        const origContent = btnPdf ? btnPdf.innerHTML : '';
-        if (btnPdf) btnPdf.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> BEREITE DRUCK VOR...';
 
         const btnExportShort = document.getElementById('btn-export-short');
         const isSummary = btnExportShort && btnExportShort.classList.contains('bg-white');
 
         const now = new Date();
-        const dateStr = now.toLocaleDateString('de-DE');
+        const dateStr = now.toLocaleDateString('de-DE').replace(/\./g, '-');
+        const timeStr = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }).replace(':', '');
+        const filename = `CPR_Protokoll_${dateStr}_${timeStr}.pdf`;
 
-        // Wir bauen ein komplett unabhängiges HTML-Dokument speziell für den Android Print-Spooler
-        let printHtml = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <title>CPR_Protokoll_${dateStr}</title>
-            <style>
-                body { font-family: Arial, Helvetica, sans-serif; color: #1e293b; line-height: 1.4; padding: 20px; max-width: 800px; margin: 0 auto; background: white; }
-                * { box-sizing: border-box; }
-                
-                /* Native CSS für garantierte Seitenumbrüche beim PDF Druck */
-                .page-break { page-break-before: always; break-before: page; }
-                .avoid-break { page-break-inside: avoid; break-inside: avoid; }
-                
-                @media print {
-                    body { padding: 0; max-width: 100%; }
-                    @page { margin: 15mm; }
-                }
-            </style>
-        </head>
-        <body>
+        // 1. Export Modal schließen, damit es nicht im Weg ist
+        const em = document.getElementById('export-modal');
+        if (em) em.classList.replace('flex', 'hidden');
+
+        // 2. Ein Vollbild-Ladebildschirm aufbauen (verdeckt unsere PDF Erzeugung)
+        const overlay = document.createElement('div');
+        overlay.style.position = 'fixed';
+        overlay.style.top = '0';
+        overlay.style.left = '0';
+        overlay.style.width = '100vw';
+        overlay.style.height = '100vh';
+        overlay.style.backgroundColor = '#f8fafc';
+        overlay.style.zIndex = '999999'; // Ganz nach vorne!
+        overlay.style.display = 'flex';
+        overlay.style.flexDirection = 'column';
+        overlay.style.alignItems = 'center';
+        overlay.style.justifyContent = 'center';
+        overlay.innerHTML = `
+            <div style="width: 50px; height: 50px; border: 5px solid #e2e8f0; border-top: 5px solid #E3000F; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px;"></div>
+            <h2 style="font-family: Arial, sans-serif; color: #1e293b; font-size: 20px; font-weight: bold; margin: 0;">Erstelle PDF...</h2>
+            <p style="font-family: Arial, sans-serif; color: #64748b; font-size: 14px; margin-top: 5px;">Bitte warten</p>
+            <style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>
+        `;
+        document.body.appendChild(overlay);
+
+        // 3. Den PDF Container erstellen (liegt ZWISCHEN Ladebildschirm und App)
+        // Dadurch zwingen wir Android, ihn 100% zu rendern!
+        const container = document.createElement('div');
+        container.style.position = 'absolute'; 
+        container.style.left = '0'; 
+        container.style.top = '0';
+        container.style.zIndex = '999998'; // Unterm Overlay, aber über der App
+        container.style.width = '800px'; 
+        container.style.padding = '30px';
+        container.style.fontFamily = 'Arial, sans-serif'; 
+        container.style.color = '#1e293b'; 
+        container.style.backgroundColor = '#ffffff';
+
+        let html = `
             <table style="width: 100%; border-bottom: 3px solid #E3000F; padding-bottom: 10px; margin-bottom: 20px;">
                 <tr>
                     <td style="vertical-align: bottom;">
-                        <h1 style="margin: 0; font-size: 24px; color: #0f172a;">REANIMATIONSPROTOKOLL</h1>
-                        <p style="margin: 5px 0 0 0; color: #64748b; font-size: 12px; font-weight: bold;">MODUS: ${isSummary ? 'SCHOCKRAUM ÜBERGABE' : 'DEBRIEFING & AUDIT'}</p>
+                        <h1 style="margin: 0; font-size: 26px; color: #0f172a;">REANIMATIONSPROTOKOLL</h1>
+                        <p style="margin: 5px 0 0 0; color: #64748b; font-size: 12px; font-weight: bold;">GENERIERT DURCH CPR ASSIST | MODUS: ${isSummary ? 'SCHOCKRAUM ÜBERGABE' : 'DEBRIEFING & AUDIT'}</p>
                     </td>
                     <td style="vertical-align: bottom; text-align: right; color: #64748b; font-size: 14px;">
-                        <strong>Datum:</strong> ${dateStr}<br>
+                        <strong>Datum:</strong> ${now.toLocaleDateString()}<br>
                         <strong>Einsatzbeginn:</strong> ${AppState.startTime || '--:--'}
                     </td>
                 </tr>
             </table>
         `;
 
-        printHtml += generateSbarHtml();
+        html += generateSbarHtml();
 
         if (!isSummary) {
             const data = AppState.protocolData;
-            
-            // Canvas rendern und als Bild injecten (perfekt für Druck)
             const canvas = createTimelineCanvas(data);
             const imgData = canvas.toDataURL('image/png');
             
-            printHtml += `
-                <div class="page-break"></div>
-                <div style="margin-top: 20px; text-align: center;">
-                    <img src="${imgData}" style="max-width: 100%; height: auto; display: block; margin: 0 auto;">
-                </div>
-            `;
+            // Native Umbrüche (.page-break) anstelle von div margins
+            html += `<div class="page-break" style="page-break-before: always; clear: both; height: 0;"></div>`;
+            html += `<div style="text-align: center; margin-top: 20px;"><img src="${imgData}" style="max-width: 100%; height: auto; display: inline-block;"></div>`;
 
-            printHtml += `
-                <div class="page-break"></div>
-                <h3 style="margin: 0 0 10px 0; font-size: 14px; color: #64748b; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">MINUTENGENAUE CHRONOLOGIE (LISTENPROTOKOLL)</h3>
-                <table style="width: 100%; border-collapse: collapse; font-size: 12px; border: 1px solid #e2e8f0;">
-                    <thead>
-                        <tr style="background: #f1f5f9; text-align: left;">
-                            <th style="padding: 8px 10px; border-bottom: 2px solid #cbd5e1; width: 80px;">Uhrzeit</th>
-                            <th style="padding: 8px 10px; border-bottom: 2px solid #cbd5e1; width: 70px;">Dauer</th>
-                            <th style="padding: 8px 10px; border-bottom: 2px solid #cbd5e1;">Aktion / Maßnahme</th>
-                        </tr>
-                    </thead>
-                    <tbody>
+            html += `<div class="page-break" style="page-break-before: always; clear: both; height: 0;"></div>`;
+            html += `
+                <div style="padding-top: 20px;">
+                    <h3 style="margin: 0 0 10px 0; font-size: 14px; color: #64748b; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">MINUTENGENAUE CHRONOLOGIE (LISTENPROTOKOLL)</h3>
+                    <table style="width: 100%; border-collapse: collapse; font-size: 12px; border: 1px solid #e2e8f0;">
+                        <thead>
+                            <tr style="background: #f1f5f9; text-align: left;">
+                                <th style="padding: 8px 10px; border-bottom: 2px solid #cbd5e1; width: 80px;">Uhrzeit</th>
+                                <th style="padding: 8px 10px; border-bottom: 2px solid #cbd5e1; width: 70px;">Dauer</th>
+                                <th style="padding: 8px 10px; border-bottom: 2px solid #cbd5e1;">Aktion / Maßnahme</th>
+                            </tr>
+                        </thead>
+                        <tbody>
             `;
 
             data.forEach((item, index) => {
@@ -362,59 +370,45 @@ window.CPR.Export = (function() {
                 const iconData = getIconData(item.action);
                 if (iconData) safeIcon = iconData.isText ? iconData.icon : iconData.icon;
 
-                printHtml += `
-                    <tr style="background: ${bg}; border-bottom: 1px solid #f1f5f9;" class="avoid-break">
+                html += `
+                    <tr style="background: ${bg}; border-bottom: 1px solid #f1f5f9;">
                         <td style="padding: 6px 10px; color: #64748b;">${item.time}</td>
                         <td style="padding: 6px 10px; font-weight: bold; color: #E3000F;">${relTime}</td>
                         <td style="padding: 6px 10px; font-weight: bold; color: #334155;">${safeIcon} ${item.action}</td>
                     </tr>
                 `;
             });
-            printHtml += `</tbody></table>`;
+            html += `</tbody></table></div>`;
         }
 
-        printHtml += `<div style="margin-top: 30px; font-size: 10px; color: #94a3b8; text-align: center;">Dieses Protokoll wurde maschinell durch CPR Assist erstellt. Alle Angaben sind fachlich zu prüfen.</div>`;
-        printHtml += `</body></html>`;
+        html += `<div style="margin-top: 30px; font-size: 10px; color: #94a3b8; text-align: center;">Dieses Protokoll wurde maschinell durch CPR Assist erstellt. Alle Angaben sind fachlich zu prüfen.</div>`;
+        
+        container.innerHTML = html;
+        document.body.appendChild(container);
 
-        // --- DER NATIVE PRINT WORKFLOW ---
-        // 1. Unsichtbaren Iframe erzeugen
-        const iframe = document.createElement('iframe');
-        iframe.style.position = 'fixed';
-        iframe.style.right = '0';
-        iframe.style.bottom = '0';
-        iframe.style.width = '0';
-        iframe.style.height = '0';
-        iframe.style.border = '0';
-        document.body.appendChild(iframe);
-
-        // 2. HTML in den Iframe schreiben
-        const iframeDoc = iframe.contentWindow.document;
-        iframeDoc.open();
-        iframeDoc.write(printHtml);
-        iframeDoc.close();
-
-        // 3. Auf Rendering warten und Druck-Dialog aufrufen
-        iframe.onload = function() {
-            setTimeout(() => {
-                if (btnPdf) btnPdf.innerHTML = origContent;
-                
-                try {
-                    // Öffnet auf Handys automatisch den "Als PDF speichern / Drucken" Dialog
-                    iframe.contentWindow.focus();
-                    iframe.contentWindow.print();
-                } catch (e) {
-                    alert("Druck-Dialog konnte nicht geöffnet werden.");
-                }
-
-                // Cleanup (Modal schließen und Iframe löschen)
-                setTimeout(() => {
-                    const em = document.getElementById('export-modal');
-                    if (em) em.classList.replace('flex', 'hidden');
-                    document.body.removeChild(iframe);
-                }, 2000);
-
-            }, 500); // Kurzer Puffer für Image-Rendering
+        // 4. Strikte PDF-Settings mit CSS-Pagebreaks
+        const opt = { 
+            margin: 10, 
+            filename: filename, 
+            image: { type: 'jpeg', quality: 0.98 }, 
+            html2canvas: { scale: 2, useCORS: true, windowWidth: 800 }, 
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+            pagebreak: { mode: 'css', before: '.page-break' } 
         };
+
+        // 5. Kurze Atempause für Android, um die Box zu rendern (150ms)
+        setTimeout(() => {
+            html2pdf().set(opt).from(container).save().then(() => {
+                // Aufräumen
+                document.body.removeChild(container);
+                document.body.removeChild(overlay);
+                if (Utils.vibrate) Utils.vibrate(30);
+            }).catch(err => {
+                document.body.removeChild(container);
+                document.body.removeChild(overlay);
+                alert("Fehler beim PDF Export: " + err.message);
+            });
+        }, 150);
     }
 
     // --- 6. TEXT EXPORT (Clipboard) ---
