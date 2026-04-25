@@ -1,10 +1,9 @@
 /**
- * CPR Assist - Export Modul (V32 - Android Emoji Crash Fix)
- * - MEDIZINISCHES UPDATE: Debriefing enthält ZUERST das SBAR Übergabe-Protokoll, 
- * dann das grafische Zeitlinien-Grid und abschließend die exakte Listen-Chronologie.
- * - PDF-SAFE: Nutzt strikte <table> Layouts.
- * - BUGFIX EXTREM: Emojis vollständig aus dem HTML-String der PDF-Tabelle entfernt, 
- * um den "Failed to execute setEnd on Range" (Surrogate Pair) Crash auf Android zu verhindern!
+ * CPR Assist - Export Modul (V35 - Android DOM Detach Fix & Centralized Buttons)
+ * - BUGFIX EXTREM: Das PDF-Container-DIV wird nun physisch (aber unsichtbar) an den DOM gehängt.
+ * Dies verhindert den berüchtigten "setEnd on Range" Android-Crash beim Text-Measuring!
+ * - BUGFIX: Alle Event-Listener für das Export-Modal (Tabs, Cancel) sind nun zentralisiert,
+ * damit es keine toten Buttons mehr gibt.
  */
 
 window.CPR = window.CPR || {};
@@ -30,7 +29,6 @@ window.CPR.Export = (function() {
         return { icon: '🔹', type: 'default' };
     }
 
-    // --- 2. HILFSFUNKTIONEN ---
     function drawSafeRoundRect(ctx, x, y, w, h, r) {
         if (ctx.roundRect) {
             ctx.beginPath(); ctx.roundRect(x, y, w, h, r);
@@ -43,7 +41,7 @@ window.CPR.Export = (function() {
         }
     }
 
-    // --- 3. DATEN EXTRAKTION (SBAR Facts) ---
+    // --- 2. DATEN EXTRAKTION ---
     function extractSbarFacts() {
         const state = window.CPR.AppState || {};
         const totalSec = state.totalSeconds || 0;
@@ -71,7 +69,7 @@ window.CPR.Export = (function() {
         return { ageStr, totalSec, ccf, adrCount, adrTotal, amioCount, amioTotal, aData, sampStr, hitsLogs, hitsHtml, state };
     }
 
-    // --- 4. SBAR HTML GENERATOR (Emoji-frei für Android WebView Stabilität) ---
+    // --- 3. HTML GENERATOR ---
     function generateSbarHtml() {
         const { ageStr, totalSec, ccf, adrTotal, amioTotal, aData, sampStr, hitsLogs, hitsHtml, state, adrCount, amioCount } = extractSbarFacts();
         const Utils = window.CPR.Utils;
@@ -130,7 +128,7 @@ window.CPR.Export = (function() {
                 </table>
             </div>
 
-            <!-- [R] RESPONSE (Emojis entfernt für Export-Stabilität) -->
+            <!-- [R] RESPONSE -->
             <h3 style="margin: 0 0 8px 0; font-size: 16px; text-transform: uppercase; color: #E3000F; border-bottom: 2px solid #f1f5f9; padding-bottom: 4px;">R - Response (Maßnahmen)</h3>
             <table style="width: 100%; font-size: 14px; border-collapse: collapse; border: 1px solid #e2e8f0;">
                 <tr><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; width: 30%; color: #64748b; background: #f8fafc;"><strong>Atemweg</strong></td><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-weight: bold;">${state.airwayLabel || 'Nicht dokumentiert'}</td></tr>
@@ -142,7 +140,7 @@ window.CPR.Export = (function() {
         `;
     }
 
-    // --- 5. CANVAS NOTENBLATT ENGINE ---
+    // --- 4. CANVAS NOTENBLATT ENGINE ---
     function createTimelineCanvas(data) {
         const events = data.map(d => ({ ...d, iconData: getIconData(d.action), timeStr: window.CPR.Utils.formatRelative(d.secondsFromStart) })).filter(d => d.iconData !== null);
         const maxSec = events.length > 0 ? events[events.length - 1].secondsFromStart : 0;
@@ -150,10 +148,10 @@ window.CPR.Export = (function() {
         let totalCycles = 0;
         let cSec = 0;
         while(cSec <= maxSec) {
-            cSec += (cSec < 300) ? 60 : 120; // Time-Warp Logik 1 Min / 2 Min
+            cSec += (cSec < 300) ? 60 : 120;
             totalCycles++;
         }
-        totalCycles = Math.max(3, totalCycles); // Mindestens 3 Zeilen
+        totalCycles = Math.max(3, totalCycles); 
 
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
@@ -243,7 +241,7 @@ window.CPR.Export = (function() {
         return canvas;
     }
 
-    // --- 6. PDF GENERIERUNG ---
+    // --- 5. PDF GENERIERUNG (Der DOM Detach Fix) ---
     function generatePdfExport() {
         const { AppState, Utils } = window.CPR;
         if (!AppState || !AppState.protocolData || AppState.protocolData.length === 0) {
@@ -262,14 +260,20 @@ window.CPR.Export = (function() {
         const timeStr = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }).replace(':', '');
         const filename = `CPR_Protokoll_${dateStr}_${timeStr}.pdf`;
 
+        // 🌟 DER ABSOLUTE PANZERGLAS-FIX FÜR ANDROID 🌟
+        // Der Container MUSS physisch in den Body gehängt werden, darf aber nicht sichtbar sein!
         const container = document.createElement('div');
+        container.id = 'pdf-render-container';
+        container.style.position = 'absolute';
+        container.style.left = '-9999px'; // Aus dem Bild schieben
+        container.style.top = '0';
         container.style.width = '800px'; 
         container.style.padding = '30px';
         container.style.fontFamily = 'Arial, sans-serif';
         container.style.color = '#1e293b';
         container.style.backgroundColor = '#ffffff';
 
-        // --- HEADER ---
+        // HEADER
         let html = `
             <table style="width: 100%; border-bottom: 3px solid #E3000F; padding-bottom: 10px; margin-bottom: 20px;">
                 <tr>
@@ -287,11 +291,10 @@ window.CPR.Export = (function() {
 
         html += generateSbarHtml();
 
-        // 2. DEBRIEFING ZUSÄTZE (Grid + Liste)
+        // DEBRIEFING ZUSÄTZE
         if (!isSummary) {
             const data = AppState.protocolData;
             
-            // 2A. Canvas Timeline (Canvas = Emojis sind hier absolut sicher!)
             const canvas = createTimelineCanvas(data);
             const imgData = canvas.toDataURL('image/png');
             html += `
@@ -300,7 +303,6 @@ window.CPR.Export = (function() {
                 </div>
             `;
 
-            // 2B. Chronologie Liste (Ebenfalls Emojis entfernt)
             html += `
                 <div style="page-break-before: always; padding-top: 10px;">
                     <h3 style="margin: 0 0 10px 0; font-size: 14px; text-transform: uppercase; color: #64748b; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">Minutengenaue Chronologie (Listenprotokoll)</h3>
@@ -330,9 +332,10 @@ window.CPR.Export = (function() {
         }
 
         html += `<div style="margin-top: 30px; font-size: 10px; color: #94a3b8; text-align: center;">Dieses Protokoll wurde maschinell durch CPR Assist erstellt. Alle Angaben sind fachlich zu prüfen.</div>`;
+        
         container.innerHTML = html;
+        document.body.appendChild(container); // 🌟 PHYSISCH AN DEN DOM HÄNGEN 🌟
 
-        // --- PDF RENDERER (Ohne letterRendering) ---
         const opt = {
             margin:       10,
             filename:     filename,
@@ -342,17 +345,23 @@ window.CPR.Export = (function() {
         };
 
         html2pdf().set(opt).from(container).save().then(() => {
+            // Nach dem Druck: Clean up! Container restlos löschen.
+            document.body.removeChild(container);
+            
             if (btnPdf) btnPdf.innerHTML = origContent;
             const em = document.getElementById('export-modal');
             if (em) em.classList.replace('flex', 'hidden');
             if (Utils.vibrate) Utils.vibrate(30);
         }).catch(err => {
+            // Auch bei Fehler sofort aufräumen!
+            document.body.removeChild(container);
+            
             alert("Fehler beim PDF Export: " + err.message);
             if (btnPdf) btnPdf.innerHTML = origContent;
         });
     }
 
-    // --- 7. TEXT EXPORT (Clipboard) ---
+    // --- 6. TEXT EXPORT (Clipboard) ---
     function generateTxtExport() {
         const { AppState, Utils } = window.CPR;
         if (!AppState || !AppState.protocolData || AppState.protocolData.length === 0) { alert("Protokoll leer."); return; }
@@ -412,16 +421,49 @@ window.CPR.Export = (function() {
         }
     }
 
+    // --- 7. ZENTRALE INITIALISIERUNG (Fixt die kaputten Buttons) ---
     function init() {
         const btnPdf = document.getElementById('btn-run-pdf-export');
-        if (btnPdf) btnPdf.addEventListener('click', generatePdfExport);
+        if (btnPdf) btnPdf.addEventListener('click', (e) => { e.preventDefault(); generatePdfExport(); });
+
         const btnTxt = document.getElementById('btn-run-txt-export');
-        if (btnTxt) btnTxt.addEventListener('click', generateTxtExport);
+        if (btnTxt) btnTxt.addEventListener('click', (e) => { e.preventDefault(); generateTxtExport(); });
+
         const btnDebriefExport = document.getElementById('btn-debrief-export');
-        if (btnDebriefExport) btnDebriefExport.addEventListener('click', () => {
+        if (btnDebriefExport) btnDebriefExport.addEventListener('click', (e) => {
+            e.preventDefault();
             const em = document.getElementById('export-modal');
             if (em) em.classList.replace('hidden', 'flex');
         });
+
+        // 🌟 ZENTRALE STEUERUNG DER MODAL-BUTTONS 🌟
+        const btnShort = document.getElementById('btn-export-short');
+        const btnLong = document.getElementById('btn-export-long');
+        const btnCancel = document.getElementById('btn-cancel-export');
+
+        if (btnShort && btnLong) {
+            btnShort.addEventListener('click', (e) => {
+                e.preventDefault();
+                btnShort.className = 'flex-1 py-2 rounded-lg text-[10px] font-black uppercase bg-white text-slate-800 shadow-sm border border-slate-200 transition-all';
+                btnLong.className = 'flex-1 py-2 rounded-lg text-[10px] font-black uppercase text-slate-500 border border-transparent transition-all';
+                if (window.CPR.AppState) window.CPR.AppState.protocolViewMode = 'summary';
+            });
+            
+            btnLong.addEventListener('click', (e) => {
+                e.preventDefault();
+                btnLong.className = 'flex-1 py-2 rounded-lg text-[10px] font-black uppercase bg-white text-slate-800 shadow-sm border border-slate-200 transition-all';
+                btnShort.className = 'flex-1 py-2 rounded-lg text-[10px] font-black uppercase text-slate-500 border border-transparent transition-all';
+                if (window.CPR.AppState) window.CPR.AppState.protocolViewMode = 'timeline';
+            });
+        }
+
+        if (btnCancel) {
+            btnCancel.addEventListener('click', (e) => {
+                e.preventDefault();
+                const em = document.getElementById('export-modal');
+                if (em) em.classList.replace('flex', 'hidden');
+            });
+        }
     }
 
     return { init: init };
