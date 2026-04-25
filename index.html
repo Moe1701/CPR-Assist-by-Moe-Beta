@@ -670,6 +670,38 @@
     <script src="js/help-overlay.js?v=999"></script>
     <script src="js/debriefing.js?v=999"></script>
     <script src="js/log-timeline.js?v=999"></script>
+    
+    <!-- 🌟 NATIVE ROSC-MENU HOOKS (Verhindert Konflikte mit ui.js / app.js) 🌟 -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const btnSampler = document.getElementById('btn-rosc-to-sampler');
+            const btnLog = document.getElementById('btn-rosc-to-log');
+            const anamneseModal = document.getElementById('anamnese-modal');
+            const exportModal = document.getElementById('export-modal');
+            const exportFooterButtons = document.getElementById('export-footer-buttons');
 
+            if (btnSampler && anamneseModal) {
+                btnSampler.addEventListener('click', () => {
+                    if (window.CPR && window.CPR.Utils) window.CPR.Utils.vibrate(20);
+                    anamneseModal.style.zIndex = '99999';
+                    anamneseModal.classList.remove('hidden');
+                    anamneseModal.classList.add('flex');
+                });
+            }
+
+            if (btnLog && exportModal) {
+                btnLog.addEventListener('click', () => {
+                    if (window.CPR && window.CPR.Utils) window.CPR.Utils.vibrate(20);
+                    exportModal.style.zIndex = '99999';
+                    exportModal.classList.remove('hidden');
+                    exportModal.classList.add('flex');
+                    if(exportFooterButtons) exportFooterButtons.classList.remove('hidden');
+                    if (window.CPR.LogTimeline && typeof window.CPR.LogTimeline.forceRender === 'function') {
+                        window.CPR.LogTimeline.forceRender();
+                    }
+                });
+            }
+        });
+    </script>
 </body>
 </html>
