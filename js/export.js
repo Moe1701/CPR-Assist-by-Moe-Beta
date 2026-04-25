@@ -1,15 +1,16 @@
 /**
- * CPR Assist - Export Modul (V40 - Medical Grade PDF mit Joule Parser & Lineal)
+ * CPR Assist - Export Modul (V41 - Medical Grade Pro)
  * - JOULE SCANNER: Das Canvas im PDF rendert nun "150J" Texte für Schocks!
- * - RHYTHMUS FILTER: "Nicht schockbar" wird im PDF als 🚫⚡ gedruckt.
- * - 15s LINEAL: Präzise Markierungen auf dem Canvas-Track.
+ * - CPR PAUSEN: Als rote Track-Elemente (statt Icons) inkl. Dauer.
+ * - 15s LINEAL: Präzise Markierungen auf dem Canvas-Track inkl. Beschriftung.
+ * - LEGENDE: Oben in das PDF-Canvas integriert.
  */
 
 window.CPR = window.CPR || {};
 
 window.CPR.Export = (function() {
 
-    // --- 1. ICON LOGIK (Sync mit log-timeline.js) ---
+    // --- 1. ICON LOGIK ---
     function getIconData(txt) {
         if (!txt) return null;
         const t = txt.toLowerCase();
@@ -35,6 +36,21 @@ window.CPR.Export = (function() {
         if (t.includes('kompression pause') || t.includes('kompression fortgesetzt') || 
             t.includes('beatmungen übersprungen') || t.includes('modus manuell') || t.includes('atemweg entfernt')) return null;
         return { icon: '🔹', type: 'default' };
+    }
+
+    function extractPauses(data, maxSec) {
+        let pauses = [];
+        let currentStart = null;
+        data.forEach(d => {
+            const t = d.action.toLowerCase();
+            if (t.includes('kompression pause')) currentStart = d.secondsFromStart;
+            else if (t.includes('kompression fortgesetzt') && currentStart !== null) {
+                pauses.push({ start: currentStart, end: d.secondsFromStart, duration: d.secondsFromStart - currentStart });
+                currentStart = null;
+            }
+        });
+        if (currentStart !== null) pauses.push({ start: currentStart, end: maxSec, duration: maxSec - currentStart, ongoing: true });
+        return pauses;
     }
 
     function drawSafeRoundRect(ctx, x, y, w, h, r) {
@@ -129,10 +145,11 @@ window.CPR.Export = (function() {
         `;
     }
 
-    // --- 4. CANVAS NOTENBLATT ENGINE (Mit Joule & 15s Lineal) ---
+    // --- 4. CANVAS NOTENBLATT ENGINE ---
     function createTimelineCanvas(data) {
         const events = data.map(d => ({ ...d, iconData: getIconData(d.action), timeStr: window.CPR.Utils.formatRelative(d.secondsFromStart) })).filter(d => d.iconData !== null);
-        const maxSec = events.length > 0 ? events[events.length - 1].secondsFromStart : 0;
+        const maxSec = data.length > 0 ? data[data.length - 1].secondsFromStart : 0;
+        const pauses = extractPauses(data, maxSec);
         
         const cycleDuration = 120;
         const totalCycles = Math.max(4, Math.ceil(maxSec / cycleDuration)); 
@@ -151,11 +168,14 @@ window.CPR.Export = (function() {
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, baseWidth, baseHeight);
 
-        ctx.fillStyle = '#f8fafc';
-        drawSafeRoundRect(ctx, 40, 20, baseWidth - 80, 50, 8);
-        ctx.fill(); ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1; ctx.stroke();
-        ctx.fillStyle = '#64748b'; ctx.font = 'bold 14px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText("GRAFISCHES ZEITLINIEN-GRID (COMPLIANCE & LEITLINIEN AUDIT)", baseWidth / 2, 45);
+        // Titel
+        ctx.fillStyle = '#64748b'; ctx.font = 'bold 16px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText("GRAFISCHES ZEITLINIEN-GRID (COMPLIANCE & LEITLINIEN AUDIT)", baseWidth / 2, 35);
+        
+        // Legende auf Canvas gemalt
+        ctx.fillStyle = '#334155'; ctx.font = 'bold 10px Arial';
+        const legendText = "▶ START  |  ❤️ ROSC  |  ⚡ SCHOCKBAR  |  🚫⚡ NICHT SCHOCKBAR  |  SCHOCK (Joule in Rot)  |  💉 MEDS  |  🫁 ATEMWEG  |  🩸 ZUGANG  |  CPR PAUSE (Roter Balken)";
+        ctx.fillText(legendText, baseWidth / 2, 60);
 
         const paddingX = 80;
         const usableWidth = baseWidth - (paddingX * 2);
@@ -165,27 +185,50 @@ window.CPR.Export = (function() {
             const cycleEndSec = currentDrawSec + cycleDuration;
             const lineY = 150 + (i * rowHeight);
 
-            // Hauptlinie zeichnen
+            // Hauptlinie
             ctx.beginPath(); ctx.moveTo(paddingX, lineY); ctx.lineTo(baseWidth - paddingX, lineY);
             ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.stroke();
             
-            // 🌟 DAS 15-SEKUNDEN LINEAL 🌟
+            // 🌟 15-SEKUNDEN LINEAL 🌟
             for (let t = 15; t < 120; t += 15) {
+                const tickSec = currentDrawSec + t;
                 const pct = t / 120;
                 const xTick = paddingX + pct * usableWidth;
-                let tickH = 4;
-                if (t === 60) tickH = 10;
-                else if (t === 30 || t === 90) tickH = 6;
-                ctx.beginPath();
-                ctx.moveTo(xTick, lineY - tickH/2); ctx.lineTo(xTick, lineY + tickH/2);
-                ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 2; ctx.stroke();
-            }
+                let tickH = (t === 60) ? 10 : 4;
+                
+                ctx.beginPath(); ctx.moveTo(xTick, lineY - tickH/2); ctx.lineTo(xTick, lineY + tickH/2);
+                ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1.5; ctx.stroke();
 
-            ctx.fillStyle = '#94a3b8'; ctx.font = 'bold 12px Arial'; ctx.textAlign = 'center';
+                ctx.fillStyle = '#94a3b8'; ctx.font = 'bold 9px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+                ctx.fillText(window.CPR.Utils.formatTime(tickSec), xTick, lineY + 6);
+            }
+            
+            // 🌟 CPR PAUSEN 🌟
+            pauses.forEach(p => {
+                const pStart = Math.max(p.start, currentDrawSec);
+                const pEnd = Math.min(p.end, cycleEndSec);
+                if (pStart < pEnd) {
+                    const pctStart = (pStart - currentDrawSec) / cycleDuration;
+                    const pctEnd = (pEnd - currentDrawSec) / cycleDuration;
+                    const xStart = paddingX + pctStart * usableWidth;
+                    const xEnd = paddingX + pctEnd * usableWidth;
+                    const pWidth = xEnd - xStart;
+
+                    ctx.fillStyle = '#ef4444'; // rot
+                    ctx.fillRect(xStart, lineY - 4, pWidth, 8);
+
+                    if (pWidth > 15) {
+                        ctx.fillStyle = '#ffffff'; ctx.font = 'bold 9px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                        ctx.fillText(p.duration + 's', xStart + pWidth/2, lineY);
+                    }
+                }
+            });
+
+            ctx.fillStyle = '#94a3b8'; ctx.font = 'bold 12px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
             ctx.fillRect(paddingX - 1, lineY - 6, 2, 12);
-            ctx.fillText(window.CPR.Utils.formatTime(currentDrawSec), paddingX, lineY + 20);
+            ctx.fillText(window.CPR.Utils.formatTime(currentDrawSec), paddingX, lineY - 8);
             ctx.fillRect(paddingX + usableWidth - 1, lineY - 6, 2, 12);
-            ctx.fillText(window.CPR.Utils.formatTime(cycleEndSec), paddingX + usableWidth, lineY + 20);
+            ctx.fillText(window.CPR.Utils.formatTime(cycleEndSec), paddingX + usableWidth, lineY - 8);
 
             const cycleEvents = events.filter(e => e.secondsFromStart >= currentDrawSec && e.secondsFromStart < cycleEndSec);
 
@@ -205,7 +248,6 @@ window.CPR.Export = (function() {
                 const boxWidth = textWidth + timeWidth + 40;
                 const boxHalf = boxWidth / 2;
 
-                // Anker-Linie
                 ctx.beginPath(); ctx.moveTo(x, lineY); ctx.lineTo(x, lineY + yOff);
                 ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1.5; ctx.stroke();
 
@@ -221,12 +263,11 @@ window.CPR.Export = (function() {
                 
                 ctx.strokeStyle = borderColor; ctx.lineWidth = 2; ctx.stroke();
 
-                ctx.fillStyle = '#E3000F'; ctx.font = 'bold 11px monospace'; ctx.textAlign = 'left';
+                ctx.fillStyle = '#E3000F'; ctx.font = 'bold 11px monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
                 ctx.fillText(`[${ev.timeStr}]`, x - boxHalf + 10, boxY + boxHeight/2);
                 ctx.fillStyle = '#334155'; ctx.font = 'bold 11px Arial';
                 ctx.fillText(`${ev.iconData.icon} ${actionText}`, x - boxHalf + 10 + timeWidth + 5, boxY + boxHeight/2);
 
-                // Dot auf der Timeline
                 ctx.beginPath(); ctx.arc(x, lineY, 4, 0, 2 * Math.PI); ctx.fillStyle = '#334155'; ctx.fill();
             });
             
@@ -298,13 +339,9 @@ window.CPR.Export = (function() {
             data.forEach((item, index) => {
                 const bg = index % 2 === 0 ? '#ffffff' : '#f8fafc';
                 const relTime = Utils.formatRelative(item.secondsFromStart);
-                
-                // Emoji safe fallback in text table
                 let safeIcon = '🔹';
                 const iconData = getIconData(item.action);
-                if (iconData) {
-                    safeIcon = iconData.isText ? iconData.icon : iconData.icon;
-                }
+                if (iconData) safeIcon = iconData.isText ? iconData.icon : iconData.icon;
 
                 html += `
                     <tr style="background: ${bg}; border-bottom: 1px solid #f1f5f9;">
