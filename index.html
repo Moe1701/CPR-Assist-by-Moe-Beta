@@ -427,6 +427,12 @@
             <button id="btn-rosc-exit" class="flex-1 bg-slate-800 text-white py-3 rounded-xl shadow-md font-black uppercase text-xs tracking-widest active:scale-95 flex flex-col items-center justify-center">EINSATZ ENDE</button>
         </div>
         
+        <!-- NEU: Logbuch & SAMPLER Buttons im ROSC Modus -->
+        <div class="flex gap-2 mb-3 shrink-0">
+            <button id="btn-rosc-to-sampler" class="flex-1 bg-white border border-slate-200 text-slate-700 py-2.5 rounded-xl shadow-sm font-bold uppercase text-[10px] tracking-widest active:scale-95 flex flex-col items-center justify-center"><i class="fa-solid fa-clipboard-list mb-1 text-slate-400"></i> SAMPLER / HITS</button>
+            <button id="btn-rosc-to-log" class="flex-1 bg-white border border-slate-200 text-slate-700 py-2.5 rounded-xl shadow-sm font-bold uppercase text-[10px] tracking-widest active:scale-95 flex flex-col items-center justify-center"><i class="fa-solid fa-clock-rotate-left mb-1 text-slate-400"></i> LOGBUCH</button>
+        </div>
+        
         <div id="pedi-rosc-vitals" class="hidden bg-cyan-50 border border-cyan-200 rounded-2xl p-4 mb-3 shadow-sm shrink-0">
             <div class="flex justify-between items-center border-b border-cyan-100 pb-2 mb-2">
                 <span class="text-[10px] font-black text-cyan-700 uppercase tracking-widest flex items-center gap-1.5"><i class="fa-solid fa-baby text-cyan-500"></i> Pedi-Safe-Limits</span>
@@ -676,26 +682,25 @@
         document.addEventListener('DOMContentLoaded', () => {
             const btnSampler = document.getElementById('btn-rosc-to-sampler');
             const btnLog = document.getElementById('btn-rosc-to-log');
-            const anamneseModal = document.getElementById('anamnese-modal');
-            const exportModal = document.getElementById('export-modal');
-            const exportFooterButtons = document.getElementById('export-footer-buttons');
+            
+            // Die exakten, existierenden IDs der Slide-Up-Panels nutzen!
+            const hitsPanel = document.getElementById('hits-panel');
+            const protocolPanel = document.getElementById('protocol-panel');
 
-            if (btnSampler && anamneseModal) {
+            if (btnSampler && hitsPanel) {
                 btnSampler.addEventListener('click', () => {
                     if (window.CPR && window.CPR.Utils) window.CPR.Utils.vibrate(20);
-                    anamneseModal.style.zIndex = '99999';
-                    anamneseModal.classList.remove('hidden');
-                    anamneseModal.classList.add('flex');
+                    // Panel sauber animiert hochfahren, wie im restlichen System
+                    hitsPanel.classList.remove('translate-y-full');
                 });
             }
 
-            if (btnLog && exportModal) {
+            if (btnLog && protocolPanel) {
                 btnLog.addEventListener('click', () => {
                     if (window.CPR && window.CPR.Utils) window.CPR.Utils.vibrate(20);
-                    exportModal.style.zIndex = '99999';
-                    exportModal.classList.remove('hidden');
-                    exportModal.classList.add('flex');
-                    if(exportFooterButtons) exportFooterButtons.classList.remove('hidden');
+                    // Logbuch Panel sauber hochfahren
+                    protocolPanel.classList.remove('translate-y-full');
+                    // Zeichne das Logbuch direkt neu, um aktuelle Daten zu garantieren
                     if (window.CPR.LogTimeline && typeof window.CPR.LogTimeline.forceRender === 'function') {
                         window.CPR.LogTimeline.forceRender();
                     }
