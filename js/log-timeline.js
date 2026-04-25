@@ -1,7 +1,8 @@
 /**
- * CPR Assist - Log Timeline Modul (V45 - CCF Inline Fix)
- * - BUGFIX: CCF-Wert platzsparend direkt neben die "HITS (Ursachen)" Überschrift gesetzt.
- * Verhindert Abschneiden auf Android und spart massiv vertikalen Platz.
+ * CPR Assist - Log Timeline Modul (V46 - ROSC & Abbruch Doku)
+ * - FEATURE: Exakte Ermittlung von "Zeit bis ROSC" aus dem Protokoll.
+ * - FEATURE: Erfassung des Abbruchgrunds (z.B. Teamentscheidung).
+ * - UI: Die "Situation"-Box wurde neu gegliedert, um Endstatus und Zeiten prominent darzustellen.
  */
 
 window.CPR = window.CPR || {};
@@ -61,7 +62,7 @@ window.CPR.LogTimeline = (function() {
         return pauses;
     }
 
-    // --- 2. DATA HARVESTER ---
+    // --- 2. DATA HARVESTER (Mit ROSC & Abbruch Detektor) ---
     function extractSbarFacts() {
         const state = window.CPR.AppState || {};
         const data = state.protocolData || [];
@@ -86,35 +87,84 @@ window.CPR.LogTimeline = (function() {
         const hitsLogs = data.filter(d => d.action.includes('HITS:'));
         const hitsHtml = hitsLogs.map(h => `<li class="mb-1">${h.action.replace('HITS: ', '')}</li>`).join('');
 
-        return { ageStr, totalSec, ccf, adrCount, adrTotal, amioCount, amioTotal, aData, sampStr, hitsLogs, hitsHtml, state, data };
+        // 🌟 END-STATUS & ROSC-ZEIT ERMITTELN 🌟
+        let endStatus = state.isRunning ? 'Laufende CPR' : (state.state === 'ROSC_ACTIVE' ? 'ROSC' : 'Laufende CPR');
+        let timeToRosc = null;
+        let abbruchReason = null;
+
+        // Vorwärts suchen: Den ERSTEN ROSC für die "Zeit bis ROSC" finden
+        for (let i = 0; i < data.length; i++) {
+            if (data[i].action.toLowerCase().includes('rosc!') && timeToRosc === null) {
+                timeToRosc = data[i].secondsFromStart;
+                break;
+            }
+        }
+
+        // Rückwärts suchen: Den ABSOLUT LETZTEN Status für das Protokoll finden
+        for (let i = data.length - 1; i >= 0; i--) {
+            const t = data[i].action.toLowerCase();
+            if (t.includes('abbruch') || t.includes('beendet')) {
+                endStatus = 'Abbruch';
+                const parts = data[i].action.split(':');
+                abbruchReason = parts.length > 1 ? parts[1].trim() : 'Nicht dokumentiert';
+                break;
+            }
+            if (t.includes('rosc!')) {
+                endStatus = 'ROSC';
+                break;
+            }
+            if (t.includes('re-arrest') || t.includes('start rea')) {
+                endStatus = state.isRunning ? 'Laufende CPR' : 'Pausiert';
+                break;
+            }
+        }
+
+        return { ageStr, totalSec, ccf, adrCount, adrTotal, amioCount, amioTotal, aData, sampStr, hitsLogs, hitsHtml, state, data, endStatus, timeToRosc, abbruchReason };
     }
 
     // --- 3. DOM RENDERING: SBAR DASHBOARD ---
     function renderSummary() {
-        const { ageStr, totalSec, ccf, adrCount, adrTotal, amioCount, amioTotal, aData, sampStr, hitsLogs, hitsHtml, state } = extractSbarFacts();
+        const { ageStr, totalSec, ccf, adrTotal, amioTotal, aData, sampStr, hitsLogs, hitsHtml, state, adrCount, amioCount, endStatus, timeToRosc, abbruchReason } = extractSbarFacts();
         const ccfColor = ccf >= 80 ? 'text-emerald-500' : 'text-[#E3000F]';
+        
+        // SBAR-Header Konfiguration für End-Status
+        let statusColor = 'text-slate-800';
+        let extraInfoHtml = '';
+        
+        if (endStatus === 'ROSC') {
+            statusColor = 'text-emerald-600';
+            if (timeToRosc !== null) extraInfoHtml = `<span class="text-[10px] font-black text-emerald-700 bg-emerald-100 border border-emerald-200 px-2 py-1 rounded-lg">Zeit bis ROSC: ${window.CPR.Utils.formatTime(timeToRosc)} Min</span>`;
+        } else if (endStatus === 'Abbruch') {
+            statusColor = 'text-slate-800';
+            if (abbruchReason) extraInfoHtml = `<span class="text-[9px] font-black text-slate-600 bg-slate-200 border border-slate-300 px-2 py-1 rounded-lg truncate max-w-[140px] text-right inline-block">Grund: ${abbruchReason}</span>`;
+        }
         
         return `
             <div class="flex-1 overflow-y-auto p-3 flex flex-col gap-3 pb-24 custom-scrollbar bg-slate-50">
                 
-                <!-- [S] SITUATION -->
+                <!-- [S] SITUATION (Neu strukturiert) -->
                 <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                     <div class="bg-blue-50 px-3 py-2 border-b border-blue-100 flex items-center gap-2">
                         <i class="fa-solid fa-user-injured text-blue-600"></i>
                         <h3 class="text-[11px] font-black text-blue-800 uppercase tracking-widest">S - Situation</h3>
                     </div>
-                    <div class="p-3 grid grid-cols-2 gap-y-3">
-                        <div>
-                            <span class="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Patient</span>
-                            <span class="text-sm font-black text-slate-800">${ageStr}</span>
+                    <div class="p-3 flex flex-col gap-2">
+                        <div class="grid grid-cols-2 gap-2">
+                            <div class="bg-slate-50 p-2 rounded-lg border border-slate-100 flex flex-col justify-center text-center">
+                                <span class="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Patient</span>
+                                <span class="text-sm font-black text-slate-800">${ageStr}</span>
+                            </div>
+                            <div class="bg-slate-50 p-2 rounded-lg border border-slate-100 flex flex-col justify-center text-center">
+                                <span class="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Gesamtdauer</span>
+                                <span class="text-sm font-black text-slate-800">${window.CPR.Utils.formatTime(totalSec)} Min</span>
+                            </div>
                         </div>
-                        <div>
-                            <span class="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Dauer</span>
-                            <span class="text-sm font-black text-slate-800">${window.CPR.Utils.formatTime(totalSec)} Min</span>
-                        </div>
-                        <div class="col-span-2">
-                            <span class="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Status</span>
-                            <span class="text-sm font-black ${state.state === 'ROSC_ACTIVE' ? 'text-emerald-600' : 'text-slate-800'}">${state.state === 'ROSC_ACTIVE' ? 'ROSC' : 'Laufende CPR'}</span>
+                        <div class="bg-slate-50 p-2.5 rounded-lg border border-slate-100 flex justify-between items-center mt-1">
+                            <div class="flex flex-col">
+                                <span class="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Einsatz-Status</span>
+                                <span class="text-sm font-black ${statusColor} leading-none">${endStatus.toUpperCase()}</span>
+                            </div>
+                            <div>${extraInfoHtml}</div>
                         </div>
                     </div>
                 </div>
@@ -149,7 +199,7 @@ window.CPR.LogTimeline = (function() {
                     </div>
                 </div>
 
-                <!-- [A] ASSESSMENT (INLINE CCF FIX) -->
+                <!-- [A] ASSESSMENT -->
                 <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                     <div class="bg-amber-50 px-3 py-2 border-b border-amber-100 flex items-center gap-2">
                         <i class="fa-solid fa-stethoscope text-amber-600"></i>
