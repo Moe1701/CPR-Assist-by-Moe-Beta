@@ -1,17 +1,17 @@
 /**
- * CPR Assist - Export Modul (V31 - PDF Fallback Fix)
- * - MEDIZINISCHES UPDATE: Debriefing enthält nun ZUERST das SBAR Übergabe-Protokoll, 
+ * CPR Assist - Export Modul (V32 - Android Emoji Crash Fix)
+ * - MEDIZINISCHES UPDATE: Debriefing enthält ZUERST das SBAR Übergabe-Protokoll, 
  * dann das grafische Zeitlinien-Grid und abschließend die exakte Listen-Chronologie.
- * - PDF-SAFE: Nutzt strikte <table> Layouts, um Brüche im jsPDF Renderer zu verhindern.
- * - BUGFIX: letterRendering deaktiviert und &bull; ersetzt, um Emoji-Crashes (setEnd on Range) zu fixen.
- * - SYNC: 100% kongruente Icon- und Daten-Engine zur neuen log-timeline.js.
+ * - PDF-SAFE: Nutzt strikte <table> Layouts.
+ * - BUGFIX EXTREM: Emojis vollständig aus dem HTML-String der PDF-Tabelle entfernt, 
+ * um den "Failed to execute setEnd on Range" (Surrogate Pair) Crash auf Android zu verhindern!
  */
 
 window.CPR = window.CPR || {};
 
 window.CPR.Export = (function() {
 
-    // --- 1. ICON LOGIK (Synchron mit log-timeline) ---
+    // --- 1. ICON LOGIK (Nur noch für das Canvas Notenblatt genutzt!) ---
     function getIconData(txt) {
         if (!txt) return null;
         const t = txt.toLowerCase();
@@ -71,7 +71,7 @@ window.CPR.Export = (function() {
         return { ageStr, totalSec, ccf, adrCount, adrTotal, amioCount, amioTotal, aData, sampStr, hitsLogs, hitsHtml, state };
     }
 
-    // --- 4. SBAR HTML GENERATOR (PDF-Safe Tabellen) ---
+    // --- 4. SBAR HTML GENERATOR (Emoji-frei für Android WebView Stabilität) ---
     function generateSbarHtml() {
         const { ageStr, totalSec, ccf, adrTotal, amioTotal, aData, sampStr, hitsLogs, hitsHtml, state, adrCount, amioCount } = extractSbarFacts();
         const Utils = window.CPR.Utils;
@@ -130,14 +130,14 @@ window.CPR.Export = (function() {
                 </table>
             </div>
 
-            <!-- [R] RESPONSE -->
+            <!-- [R] RESPONSE (Emojis entfernt für Export-Stabilität) -->
             <h3 style="margin: 0 0 8px 0; font-size: 16px; text-transform: uppercase; color: #E3000F; border-bottom: 2px solid #f1f5f9; padding-bottom: 4px;">R - Response (Maßnahmen)</h3>
             <table style="width: 100%; font-size: 14px; border-collapse: collapse; border: 1px solid #e2e8f0;">
-                <tr><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; width: 30%; color: #64748b; background: #f8fafc;">🫁 <strong>Atemweg</strong></td><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-weight: bold;">${state.airwayLabel || 'Nicht dokumentiert'}</td></tr>
-                <tr><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; color: #64748b; background: #f8fafc;">🩸 <strong>Zugang</strong></td><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-weight: bold;">${state.zugangLabel || 'Nicht dokumentiert'}</td></tr>
-                <tr><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; color: #64748b; background: #f8fafc;">⚡ <strong>Defibrillationen</strong></td><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-weight: bold;">${state.shockCount || 0}x Schocks abgegeben</td></tr>
-                <tr><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; color: #E3000F; background: #fef2f2;">💉 <strong>Adrenalin</strong></td><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-weight: bold; color: #E3000F;">Gesamt: ${adrTotal} <span style="font-size: 12px; color: #ef4444; font-weight: normal;">(${adrCount} Gaben)</span></td></tr>
-                <tr><td style="padding: 10px; color: #7e22ce; background: #faf5ff;">💊 <strong>Amiodaron</strong></td><td style="padding: 10px; font-weight: bold; color: #7e22ce;">Gesamt: ${amioTotal} <span style="font-size: 12px; color: #a855f7; font-weight: normal;">(${amioCount} Gaben)</span></td></tr>
+                <tr><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; width: 30%; color: #64748b; background: #f8fafc;"><strong>Atemweg</strong></td><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-weight: bold;">${state.airwayLabel || 'Nicht dokumentiert'}</td></tr>
+                <tr><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; color: #64748b; background: #f8fafc;"><strong>Zugang</strong></td><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-weight: bold;">${state.zugangLabel || 'Nicht dokumentiert'}</td></tr>
+                <tr><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; color: #64748b; background: #f8fafc;"><strong>Defibrillationen</strong></td><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-weight: bold;">${state.shockCount || 0}x Schocks abgegeben</td></tr>
+                <tr><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; color: #E3000F; background: #fef2f2;"><strong>Adrenalin</strong></td><td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-weight: bold; color: #E3000F;">Gesamt: ${adrTotal} <span style="font-size: 12px; color: #ef4444; font-weight: normal;">(${adrCount} Gaben)</span></td></tr>
+                <tr><td style="padding: 10px; color: #7e22ce; background: #faf5ff;"><strong>Amiodaron</strong></td><td style="padding: 10px; font-weight: bold; color: #7e22ce;">Gesamt: ${amioTotal} <span style="font-size: 12px; color: #a855f7; font-weight: normal;">(${amioCount} Gaben)</span></td></tr>
             </table>
         `;
     }
@@ -254,7 +254,6 @@ window.CPR.Export = (function() {
         const origContent = btnPdf ? btnPdf.innerHTML : '';
         if (btnPdf) btnPdf.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Erstelle PDF...';
 
-        // Lese Modal State (Short = SBAR only | Long = SBAR + Canvas + List)
         const btnExportShort = document.getElementById('btn-export-short');
         const isSummary = btnExportShort && btnExportShort.classList.contains('bg-white');
 
@@ -286,14 +285,13 @@ window.CPR.Export = (function() {
             </table>
         `;
 
-        // 1. SBAR SCHEMA (Ist auf BEIDEN Protokollen immer Seite 1)
         html += generateSbarHtml();
 
         // 2. DEBRIEFING ZUSÄTZE (Grid + Liste)
         if (!isSummary) {
             const data = AppState.protocolData;
             
-            // 2A. Canvas Timeline (Zwingt PDF meist auf Seite 2)
+            // 2A. Canvas Timeline (Canvas = Emojis sind hier absolut sicher!)
             const canvas = createTimelineCanvas(data);
             const imgData = canvas.toDataURL('image/png');
             html += `
@@ -302,7 +300,7 @@ window.CPR.Export = (function() {
                 </div>
             `;
 
-            // 2B. Chronologie Liste
+            // 2B. Chronologie Liste (Ebenfalls Emojis entfernt)
             html += `
                 <div style="page-break-before: always; padding-top: 10px;">
                     <h3 style="margin: 0 0 10px 0; font-size: 14px; text-transform: uppercase; color: #64748b; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">Minutengenaue Chronologie (Listenprotokoll)</h3>
@@ -320,12 +318,11 @@ window.CPR.Export = (function() {
             data.forEach((item, index) => {
                 const bg = index % 2 === 0 ? '#ffffff' : '#f8fafc';
                 const relTime = Utils.formatRelative(item.secondsFromStart);
-                const iData = getIconData(item.action) || {icon: '🔹'};
                 html += `
                     <tr style="background: ${bg}; border-bottom: 1px solid #f1f5f9;">
                         <td style="padding: 6px 10px; color: #64748b;">${item.time}</td>
                         <td style="padding: 6px 10px; font-weight: bold; color: #E3000F;">${relTime}</td>
-                        <td style="padding: 6px 10px; font-weight: bold; color: #334155;">${iData.icon} ${item.action}</td>
+                        <td style="padding: 6px 10px; font-weight: bold; color: #334155;">${item.action}</td>
                     </tr>
                 `;
             });
@@ -335,7 +332,7 @@ window.CPR.Export = (function() {
         html += `<div style="margin-top: 30px; font-size: 10px; color: #94a3b8; text-align: center;">Dieses Protokoll wurde maschinell durch CPR Assist erstellt. Alle Angaben sind fachlich zu prüfen.</div>`;
         container.innerHTML = html;
 
-        // --- PDF RENDERER (FIXED) ---
+        // --- PDF RENDERER (Ohne letterRendering) ---
         const opt = {
             margin:       10,
             filename:     filename,
@@ -397,7 +394,6 @@ window.CPR.Export = (function() {
         
         text += "\n-- Generiert durch CPR Assist --";
 
-        // Fallback Clipboard
         if (navigator.clipboard && window.isSecureContext) {
             navigator.clipboard.writeText(text).then(() => {
                 if(Utils.vibrate) Utils.vibrate(30);
