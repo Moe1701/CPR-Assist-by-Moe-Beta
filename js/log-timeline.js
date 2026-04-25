@@ -1,8 +1,10 @@
 /**
- * CPR Assist - Log Timeline Modul (V39 - Medical Grade Timeline & Rhythm Analysis)
- * - JOULE SCANNER: Erkennt "150 J" und rendert Text-Icons statt Blitzen.
- * - RHYTHMUS FILTER: Schockbar (Gelber Blitz), Nicht Schockbar (Durchgestrichener Blitz).
- * - 15s LINEAL: Präzise Ticks auf der Mittelachse zur Orientierung.
+ * CPR Assist - Log Timeline Modul (V41 - Medical Grade Pro)
+ * - JOULE SCANNER: Erkennt "150 J" und rendert Text-Icons.
+ * - RHYTHMUS FILTER: Schockbar (Gelb), Nicht Schockbar (Durchgestrichen).
+ * - CPR PAUSEN: Werden als rote Segmente auf der Zeitlinie mit Dauer (z.B. 12s) gerendert.
+ * - 15s LINEAL: Beschriftete Ticks (00:15, 00:30) auf der Mittelachse.
+ * - LEGENDE: Vollständig ausgebaut und "Sticky".
  */
 
 window.CPR = window.CPR || {};
@@ -16,30 +18,19 @@ window.CPR.LogTimeline = (function() {
         if (!txt) return null;
         const t = txt.toLowerCase();
         
-        // 1. Defibrillation (Schockabgabe)
         if (t.includes('schock') && !t.includes('schockbar')) {
             const match = t.match(/(\d+)\s*[jJ]/);
-            if (match) {
-                return { icon: match[1] + 'J', isText: true, type: 'shock', color: 'text-white', bg: 'bg-[#E3000F]' };
-            }
+            if (match) return { icon: match[1] + 'J', isText: true, type: 'shock', color: 'text-white', bg: 'bg-[#E3000F]' };
             return { icon: '⚡', type: 'shock', color: 'text-white', bg: 'bg-[#E3000F]' };
         }
         
-        // 2. Rhythmusanalyse
-        if (t.includes('nicht schockbar')) {
-            return { 
-                icon: '🚫⚡', 
-                htmlIcon: '<div class="relative">⚡<div class="absolute top-1/2 left-[-2px] right-[-2px] h-[2px] bg-red-500 rotate-45 -translate-y-1/2 shadow-sm"></div></div>', 
-                type: 'analysis-no', 
-                color: 'text-slate-400', 
-                bg: 'bg-slate-200' 
-            };
-        }
-        if (t.includes('schockbar')) {
-            return { icon: '⚡', type: 'analysis-yes', color: 'text-amber-500', bg: 'bg-amber-50' };
-        }
+        if (t.includes('nicht schockbar')) return { 
+            icon: '🚫⚡', 
+            htmlIcon: '<div class="relative">⚡<div class="absolute top-1/2 left-[-2px] right-[-2px] h-[2px] bg-red-500 rotate-45 -translate-y-1/2 shadow-sm"></div></div>', 
+            type: 'analysis-no', color: 'text-slate-400', bg: 'bg-slate-200' 
+        };
+        if (t.includes('schockbar')) return { icon: '⚡', type: 'analysis-yes', color: 'text-amber-500', bg: 'bg-amber-50' };
 
-        // Restliche Icons
         if (t.includes('hits') || t.includes('sampler') || t.includes('anamnese')) return { icon: '📋', type: 'info', color: 'text-slate-500', bg: 'bg-white' };
         if (t.includes('adrenalin')) return { icon: '💉', type: 'adr', color: 'text-[#E3000F]', bg: 'bg-red-50' };
         if (t.includes('amiodaron') || t.includes('amio')) return { icon: '💊', type: 'amio', color: 'text-purple-600', bg: 'bg-purple-50' };
@@ -52,11 +43,25 @@ window.CPR.LogTimeline = (function() {
         
         if (t.includes('kompression pause') || t.includes('kompression fortgesetzt') || 
             t.includes('beatmungen übersprungen') || t.includes('modus manuell') ||
-            t.includes('atemweg entfernt')) {
-            return null; 
-        }
+            t.includes('atemweg entfernt')) return null; 
         
         return { icon: '🔹', type: 'default', color: 'text-slate-400', bg: 'bg-slate-100' };
+    }
+
+    // --- PAUSEN EXTRAKTOR ---
+    function extractPauses(data, currentAppSec) {
+        let pauses = [];
+        let currentStart = null;
+        data.forEach(d => {
+            const t = d.action.toLowerCase();
+            if (t.includes('kompression pause')) currentStart = d.secondsFromStart;
+            else if (t.includes('kompression fortgesetzt') && currentStart !== null) {
+                pauses.push({ start: currentStart, end: d.secondsFromStart, duration: d.secondsFromStart - currentStart });
+                currentStart = null;
+            }
+        });
+        if (currentStart !== null) pauses.push({ start: currentStart, end: currentAppSec, duration: currentAppSec - currentStart, ongoing: true });
+        return pauses;
     }
 
     // --- 2. DATA HARVESTER ---
@@ -82,7 +87,7 @@ window.CPR.LogTimeline = (function() {
         const hitsLogs = data.filter(d => d.action.includes('HITS:'));
         const hitsHtml = hitsLogs.map(h => `<li class="mb-1">${h.action.replace('HITS: ', '')}</li>`).join('');
 
-        return { ageStr, totalSec, ccf, adrCount, adrTotal, amioCount, amioTotal, aData, sampStr, hitsLogs, hitsHtml, state };
+        return { ageStr, totalSec, ccf, adrCount, adrTotal, amioCount, amioTotal, aData, sampStr, hitsLogs, hitsHtml, state, data };
     }
 
     // --- 3. DOM RENDERING: SBAR DASHBOARD ---
@@ -185,18 +190,25 @@ window.CPR.LogTimeline = (function() {
     }
 
     // --- 5. DOM RENDERING: THE PERFECT GRID ---
-    function renderTimeline(data) {
-        // LEGENDE MIT JOULE UND DIAGNOSE
+    function renderTimeline() {
+        const { totalSec, data } = extractSbarFacts();
+        let currentAppSec = totalSec;
+        
+        // VOLLSTÄNDIGE LEGENDE
         let html = `
         <div class="flex flex-col h-full overflow-hidden relative">
-            <div class="sticky top-0 z-50 bg-slate-50 border-b border-slate-200 px-3 py-2 shrink-0 shadow-sm">
-                <div class="bg-white p-2 rounded-xl border border-slate-100">
-                    <div class="flex flex-wrap justify-center items-center gap-x-4 gap-y-1.5">
-                        <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm text-amber-500">⚡</span><span class="text-[7.5px] font-bold text-slate-600 uppercase tracking-widest">Schockbar</span></div>
-                        <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm relative text-slate-400">⚡<div class="absolute top-1/2 left-[-2px] right-[-2px] h-[1.5px] bg-red-500 rotate-45 -translate-y-1/2"></div></span><span class="text-[7.5px] font-bold text-slate-600 uppercase tracking-widest">Nicht Schockbar</span></div>
-                        <div class="flex items-center gap-1"><div class="w-[14px] h-[14px] rounded-full bg-[#E3000F] text-white flex items-center justify-center text-[5px] font-black">150J</div><span class="text-[7.5px] font-bold text-slate-600 uppercase tracking-widest">Schock</span></div>
-                        <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm">💉</span><span class="text-[7.5px] font-bold text-slate-600 uppercase tracking-widest">Meds</span></div>
-                        <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm">🫁</span><span class="text-[7.5px] font-bold text-slate-600 uppercase tracking-widest">Atemweg</span></div>
+            <div class="sticky top-0 z-50 bg-slate-50 border-b border-slate-200 px-2 py-2 shrink-0 shadow-sm">
+                <div class="bg-white p-1.5 rounded-xl border border-slate-100">
+                    <div class="flex flex-wrap justify-center items-center gap-x-3 gap-y-1.5">
+                        <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm">▶️</span><span class="text-[7px] font-bold text-slate-600 uppercase tracking-widest">Start</span></div>
+                        <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm text-emerald-500">❤️</span><span class="text-[7px] font-bold text-slate-600 uppercase tracking-widest">ROSC</span></div>
+                        <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm text-amber-500">⚡</span><span class="text-[7px] font-bold text-slate-600 uppercase tracking-widest">Schockbar</span></div>
+                        <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm relative text-slate-400">⚡<div class="absolute top-1/2 left-[-2px] right-[-2px] h-[1.5px] bg-red-500 rotate-45 -translate-y-1/2"></div></span><span class="text-[7px] font-bold text-slate-600 uppercase tracking-widest">Nicht Schockbar</span></div>
+                        <div class="flex items-center gap-1"><div class="w-[14px] h-[14px] rounded-full bg-[#E3000F] text-white flex items-center justify-center text-[5px] font-black">150J</div><span class="text-[7px] font-bold text-slate-600 uppercase tracking-widest">Schock</span></div>
+                        <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm">💉</span><span class="text-[7px] font-bold text-slate-600 uppercase tracking-widest">Meds</span></div>
+                        <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm">🫁</span><span class="text-[7px] font-bold text-slate-600 uppercase tracking-widest">Atemweg</span></div>
+                        <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm">🩸</span><span class="text-[7px] font-bold text-slate-600 uppercase tracking-widest">Zugang</span></div>
+                        <div class="flex items-center gap-1"><div class="w-4 h-1.5 bg-red-500 rounded"></div><span class="text-[7px] font-bold text-slate-600 uppercase tracking-widest">CPR Pause</span></div>
                     </div>
                 </div>
             </div>
@@ -209,8 +221,7 @@ window.CPR.LogTimeline = (function() {
         }
 
         const filtered = data.map(d => ({ ...d, iconData: getIconData(d.action) })).filter(d => d.iconData !== null);
-        const state = window.CPR.AppState || {};
-        let currentAppSec = state.totalSeconds || 0;
+        const pauses = extractPauses(data, currentAppSec);
         
         if (filtered.length > 0 && filtered[filtered.length - 1].secondsFromStart > currentAppSec) {
             currentAppSec = filtered[filtered.length - 1].secondsFromStart;
@@ -228,22 +239,40 @@ window.CPR.LogTimeline = (function() {
 
             html += `
                 <div class="relative w-full h-[140px] mb-8 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden shrink-0">
-                    <!-- Mittellinie (Track) mit 15-Sekunden Lineal -->
-                    <div class="absolute top-1/2 left-8 right-8 h-1 bg-slate-100 rounded-full -translate-y-1/2 shadow-inner">
-                        <div class="absolute top-1/2 left-[12.5%] w-px h-2 bg-slate-300 -translate-y-1/2 -translate-x-1/2"></div>
-                        <div class="absolute top-1/2 left-[25%] w-px h-3 bg-slate-400 -translate-y-1/2 -translate-x-1/2"></div>
-                        <div class="absolute top-1/2 left-[37.5%] w-px h-2 bg-slate-300 -translate-y-1/2 -translate-x-1/2"></div>
-                        <div class="absolute top-1/2 left-[50%] w-px h-4 bg-slate-400 -translate-y-1/2 -translate-x-1/2"></div>
-                        <div class="absolute top-1/2 left-[62.5%] w-px h-2 bg-slate-300 -translate-y-1/2 -translate-x-1/2"></div>
-                        <div class="absolute top-1/2 left-[75%] w-px h-3 bg-slate-400 -translate-y-1/2 -translate-x-1/2"></div>
-                        <div class="absolute top-1/2 left-[87.5%] w-px h-2 bg-slate-300 -translate-y-1/2 -translate-x-1/2"></div>
-                    </div>
-                    
                     <div class="absolute top-1/2 left-1 -translate-y-1/2 text-[9px] font-black text-slate-400 bg-white px-1 z-10">${window.CPR.Utils.formatTime(currentStartSec)}</div>
                     <div class="absolute top-1/2 right-1 -translate-y-1/2 text-[9px] font-black text-slate-400 bg-white px-1 z-10">${window.CPR.Utils.formatTime(cycleEndSec)}</div>
                     
                     <div class="absolute inset-y-0 left-8 right-8 pointer-events-none">
+                        <!-- Mittellinie (Track) -->
+                        <div class="absolute top-1/2 left-0 right-0 h-1 bg-slate-100 rounded-full -translate-y-1/2 shadow-inner"></div>
             `;
+
+            // 🌟 15s LINEAL (Mit Beschriftung)
+            for (let t = 15; t < 120; t += 15) {
+                const tickSec = currentStartSec + t;
+                const pct = (t / 120) * 100;
+                const isHalf = t === 60;
+                const tickH = isHalf ? 'h-4' : 'h-2';
+                html += `<div class="absolute top-1/2 w-px ${tickH} bg-slate-300 -translate-y-1/2 -translate-x-1/2" style="left: ${pct}%;"></div>`;
+                html += `<div class="absolute top-1/2 mt-3.5 text-[6.5px] font-black text-slate-400 -translate-y-1/2 -translate-x-1/2" style="left: ${pct}%;">${window.CPR.Utils.formatTime(tickSec)}</div>`;
+            }
+
+            // 🌟 CPR PAUSEN (Rote Balken)
+            pauses.forEach(p => {
+                const pStart = Math.max(p.start, currentStartSec);
+                const pEnd = Math.min(p.end, cycleEndSec);
+                if (pStart < pEnd) {
+                    const pctStart = ((pStart - currentStartSec) / cycleDuration) * 100;
+                    const pctEnd = ((pEnd - currentStartSec) / cycleDuration) * 100;
+                    const widthPct = pctEnd - pctStart;
+                    html += `
+                        <div class="absolute top-1/2 h-2.5 bg-red-500 rounded-sm flex items-center justify-center -translate-y-1/2 z-0"
+                             style="left: ${pctStart}%; width: ${widthPct}%;">
+                             ${widthPct > 4 ? `<span class="text-[6px] font-black text-white shadow-sm">${p.duration}s</span>` : ''}
+                        </div>
+                    `;
+                }
+            });
 
             // LIVE MARKER
             if (isActiveBlock) {
@@ -320,13 +349,12 @@ window.CPR.LogTimeline = (function() {
     function renderCurrentView() {
         const container = document.getElementById('protocol-list');
         if (!container) return;
-        const data = (window.CPR.AppState && window.CPR.AppState.protocolData) ? window.CPR.AppState.protocolData : [];
         const scrollTarget = container.querySelector('.overflow-y-auto');
         const currentScrollPos = scrollTarget ? scrollTarget.scrollTop : 0;
 
-        if (currentView === 'timeline') container.innerHTML = renderTimeline(data);
+        if (currentView === 'timeline') container.innerHTML = renderTimeline();
         else if (currentView === 'summary') container.innerHTML = renderSummary();
-        else container.innerHTML = renderList(data);
+        else container.innerHTML = renderList((window.CPR.AppState && window.CPR.AppState.protocolData) ? window.CPR.AppState.protocolData : []);
 
         requestAnimationFrame(() => {
             const newScrollTarget = container.querySelector('.overflow-y-auto');
