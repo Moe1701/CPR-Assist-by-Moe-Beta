@@ -1,9 +1,9 @@
 /**
- * CPR Assist - Export Modul (V41 - Medical Grade Pro)
+ * CPR Assist - Export Modul (V42 - Medical Grade Pro & Legenden Update)
+ * - LEGENDE: Amiodaron (💊) in der Canvas-PDF-Legende hinzugefügt.
  * - JOULE SCANNER: Das Canvas im PDF rendert nun "150J" Texte für Schocks!
  * - CPR PAUSEN: Als rote Track-Elemente (statt Icons) inkl. Dauer.
  * - 15s LINEAL: Präzise Markierungen auf dem Canvas-Track inkl. Beschriftung.
- * - LEGENDE: Oben in das PDF-Canvas integriert.
  */
 
 window.CPR = window.CPR || {};
@@ -174,7 +174,7 @@ window.CPR.Export = (function() {
         
         // Legende auf Canvas gemalt
         ctx.fillStyle = '#334155'; ctx.font = 'bold 10px Arial';
-        const legendText = "▶ START  |  ❤️ ROSC  |  ⚡ SCHOCKBAR  |  🚫⚡ NICHT SCHOCKBAR  |  SCHOCK (Joule in Rot)  |  💉 MEDS  |  🫁 ATEMWEG  |  🩸 ZUGANG  |  CPR PAUSE (Roter Balken)";
+        const legendText = "▶ START  |  ❤️ ROSC  |  ⚡ SCHOCKBAR  |  🚫⚡ NICHT SCHOCKBAR  |  SCHOCK (Joule in Rot)  |  💉 ADRENALIN  |  💊 AMIODARON  |  🫁 ATEMWEG  |  🩸 ZUGANG  |  CPR PAUSE (Roter Balken)";
         ctx.fillText(legendText, baseWidth / 2, 60);
 
         const paddingX = 80;
