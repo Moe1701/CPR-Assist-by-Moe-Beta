@@ -5,7 +5,7 @@
  * - LOGIC FIX: Timer schaltet nicht mehr automatisch um, sondern eskaliert!
  * - ARCHITECTURE: Satelliten werden beim Öffnen von Menüs global im CSS ausgeblendet!
  * - BUGFIX (navHelper): Verhindert das Ausblenden der UI beim App-Resume aus dem Hintergrund.
- * - BUGFIX (Sonnenfinsternis): 500ms Puffer nach Resume verhindert CSS Layout Race Condition.
+ * - BUGFIX (Sonnenfinsternis): Hardcodierte DOM opacity-0 Klassen werden bei Dashboard-Init bereinigt.
  */
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -192,6 +192,10 @@ document.addEventListener('DOMContentLoaded', function() {
         document.body.classList.add('dashboard-active');
         const sats = document.getElementById('satellites'); if (sats) sats.classList.remove('hidden');
         ['btn-airway', 'btn-cpr'].forEach(id => { const el = document.getElementById(id); if (el) el.classList.remove('opacity-0', 'pointer-events-none'); });
+        
+        // 🌟 FIX: CSS Layout Eclipse - Entfernt hartcodierte Opacity-0 Klassen von den Satelliten 🌟
+        document.querySelectorAll('.satellite-btn').forEach(b => b.classList.remove('opacity-0', 'pointer-events-none'));
+        
         if (UI && typeof UI.recalcMeds === 'function') UI.recalcMeds();
         AppState.isRunning = true;
         if (CPR.CPRTimer && typeof CPR.CPRTimer.start === 'function') CPR.CPRTimer.start(resetTimer);
@@ -848,6 +852,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('satellites')?.classList.remove('hidden');
                 ['btn-airway', 'btn-cpr'].forEach(id => { document.getElementById(id)?.classList.remove('opacity-0', 'pointer-events-none'); });
                 
+                // 🌟 FIX: CSS Layout Eclipse - Entfernt hartcodierte Opacity-0 Klassen von den Satelliten 🌟
+                document.querySelectorAll('.satellite-btn').forEach(b => b.classList.remove('opacity-0', 'pointer-events-none'));
+                
                 if (AppState.state === 'WAITING_CPR_RESUME') {
                     navHelper(null, 'view-cpr-resume', 'large');
                 } else if (AppState.state !== 'RUNNING') { 
@@ -870,11 +877,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 updateCprUI(); requestWakeLock();
                 if (AppState.adrSeconds > 0 && CPR.AdrTimer && typeof CPR.AdrTimer.start === 'function') CPR.AdrTimer.start(true); 
                 
-                // 🌟 FIX: Sonnenfinsternis-Bug beheben! Satelliten nach Resume verzögert neu anordnen (CSS Race Condition) 🌟
+                // 🌟 CLEANUP: Veraltete CSS Race-Condition Delays entfernt
                 if (window.CPR.MedsButton && typeof window.CPR.MedsButton.init === 'function') {
-                    setTimeout(() => {
-                        window.CPR.MedsButton.init();
-                    }, 500);
+                    window.CPR.MedsButton.init();
                 }
             }
 
