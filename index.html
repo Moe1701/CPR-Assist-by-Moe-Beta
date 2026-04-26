@@ -35,7 +35,7 @@
     </div>
 
     <!-- HEADER -->
-    <header class="flex items-center justify-between bg-white px-4 py-3 border-b border-slate-200 shadow-sm z-[60] relative shrink-0">
+    <header class="flex items-center justify-between bg-white px-4 py-3 border-b border-slate-200 shadow-sm z-[70] relative shrink-0">
         <div id="logo-container" class="flex items-center gap-3 p-1 select-none cursor-pointer">
             <div class="w-10 h-10 flex items-center justify-center shrink-0 text-[#E3000F]">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-8 h-8"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/><path d="M3.22 12H9.5l.5-1 2 4.5 2-7 1.5 3.5h5.27"/></svg>
@@ -55,40 +55,52 @@
         </div>
     </header>
 
-    <!-- TOP STATS (SPACE RESERVATION PATTERN: Unsichtbar, aber reserviert Layout-Platz) -->
-    <div id="top-stats-container" class="opacity-0 pointer-events-none transition-opacity duration-300 w-full z-[40] shrink-0 bg-slate-50 px-2 pt-2 pb-1 relative">
-        <div id="top-stats" class="flex gap-2 w-full max-w-md mx-auto">
-            <div class="flex-1 bg-white p-2.5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
-                <div class="flex justify-between items-center border-b border-slate-50 pb-1 mb-1">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Zeit</span>
-                    <span id="start-time" class="text-xs text-slate-500 font-bold tracking-wide">--:--</span>
-                </div>
-                <div id="main-timer" class="text-3xl sm:text-4xl font-mono font-black tracking-tight text-slate-800 mt-1">00:00</div>
+    <!-- 🌟 LAYOUT ANCHOR: Verankert die Top-Stats UND den Disclaimer fix oben 🌟 -->
+    <div class="relative w-full shrink-0 z-[60]">
+        
+        <!-- DISCLAIMER (Absolut positioniert, genau 16px unter dem Header) -->
+        <div class="absolute top-4 left-0 right-0 w-full px-4 z-[65] pointer-events-none">
+            <div id="medical-disclaimer" class="w-full max-w-sm mx-auto bg-red-50/95 backdrop-blur-sm border-2 border-red-500 rounded-2xl p-3 shadow-sm text-center pointer-events-auto">
+                <h2 class="text-red-700 font-black uppercase tracking-widest text-xs mb-1"><i class="fa-solid fa-triangle-exclamation text-red-600 mr-1.5"></i>Wichtiger Hinweis</h2>
+                <p class="text-red-800 text-[10px] font-bold leading-tight">Assistenz- & Trainingswerkzeug für med. Fachpersonal. Ersetzt keine ärztliche Entscheidung. Alle Dosierungen sind eigenverantwortlich zu prüfen. Nutzung auf eigene Gefahr.</p>
             </div>
-            <div id="stat-ccf" class="flex-[1.5] bg-white p-2.5 rounded-xl border border-slate-200 shadow-sm flex justify-between items-center transition-all overflow-hidden">
-                <div class="flex flex-col items-start w-full">
-                    <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Patient/Modus</span>
-                    <div class="flex gap-1 flex-wrap items-center">
-                        <button id="btn-pediatric-edit" class="hidden text-[9px] bg-red-100 text-red-700 border border-red-300 px-2 py-1 rounded-full font-black uppercase flex items-center gap-1 active:scale-95 shadow-sm transition-all animate-pulse">
-                            <i class="fa-solid fa-weight-scale"></i> <span id="pediatric-weight-display">FEHLT!</span>
-                        </button>
-                        <div id="btn-toggle-mode" class="relative flex items-center bg-amber-100 rounded-full p-[2px] cursor-pointer w-[92px] h-[28px] shadow-inner select-none border border-amber-200 transition-colors duration-300 shrink-0">
-                            <div id="mode-slider-thumb" class="absolute left-[2px] top-[2px] w-[43px] h-[22px] bg-white rounded-full shadow-sm transition-transform duration-300 border border-amber-200 z-0 translate-x-0"></div>
-                            <div id="mode-label-sync" class="flex-1 text-center text-[10px] font-black z-10 transition-colors duration-300 text-amber-700">30:2</div>
-                            <div id="mode-label-kont" class="flex-1 text-center text-[10px] font-black z-10 transition-colors duration-300 text-amber-400">KONT</div>
+        </div>
+
+        <!-- TOP STATS (SPACE RESERVATION PATTERN) -->
+        <div id="top-stats-container" class="opacity-0 pointer-events-none transition-opacity duration-300 w-full bg-slate-50 px-2 pt-2 pb-1 relative z-[40]">
+            <div id="top-stats" class="flex gap-2 w-full max-w-md mx-auto">
+                <div class="flex-1 bg-white p-2.5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                    <div class="flex justify-between items-center border-b border-slate-50 pb-1 mb-1">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Zeit</span>
+                        <span id="start-time" class="text-xs text-slate-500 font-bold tracking-wide">--:--</span>
+                    </div>
+                    <div id="main-timer" class="text-3xl sm:text-4xl font-mono font-black tracking-tight text-slate-800 mt-1">00:00</div>
+                </div>
+                <div id="stat-ccf" class="flex-[1.5] bg-white p-2.5 rounded-xl border border-slate-200 shadow-sm flex justify-between items-center transition-all overflow-hidden">
+                    <div class="flex flex-col items-start w-full">
+                        <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Patient/Modus</span>
+                        <div class="flex gap-1 flex-wrap items-center">
+                            <button id="btn-pediatric-edit" class="hidden text-[9px] bg-red-100 text-red-700 border border-red-300 px-2 py-1 rounded-full font-black uppercase flex items-center gap-1 active:scale-95 shadow-sm transition-all animate-pulse">
+                                <i class="fa-solid fa-weight-scale"></i> <span id="pediatric-weight-display">FEHLT!</span>
+                            </button>
+                            <div id="btn-toggle-mode" class="relative flex items-center bg-amber-100 rounded-full p-[2px] cursor-pointer w-[92px] h-[28px] shadow-inner select-none border border-amber-200 transition-colors duration-300 shrink-0">
+                                <div id="mode-slider-thumb" class="absolute left-[2px] top-[2px] w-[43px] h-[22px] bg-white rounded-full shadow-sm transition-transform duration-300 border border-amber-200 z-0 translate-x-0"></div>
+                                <div id="mode-label-sync" class="flex-1 text-center text-[10px] font-black z-10 transition-colors duration-300 text-amber-700">30:2</div>
+                                <div id="mode-label-kont" class="flex-1 text-center text-[10px] font-black z-10 transition-colors duration-300 text-amber-400">KONT</div>
+                            </div>
                         </div>
                     </div>
+                    <div class="flex flex-col items-end shrink-0 pl-2 border-l border-slate-100 min-w-[50px]">
+                        <span class="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">CCF</span>
+                        <div id="ccf-display" class="text-2xl sm:text-3xl font-black text-slate-300 tracking-tight leading-none">--%</div>
+                    </div>
                 </div>
-                <div class="flex flex-col items-end shrink-0 pl-2 border-l border-slate-100 min-w-[50px]">
-                    <span class="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">CCF</span>
-                    <div id="ccf-display" class="text-2xl sm:text-3xl font-black text-slate-300 tracking-tight leading-none">--%</div>
+                <div id="stat-rosc" class="hidden flex-[1.5] bg-emerald-100 p-2.5 rounded-xl border border-emerald-300 shadow-sm justify-between items-center transition-all">
+                    <div class="flex flex-col items-start">
+                        <span class="text-[9px] font-black text-emerald-700 uppercase tracking-widest flex items-center gap-1"><i class="fa-solid fa-heart-pulse"></i> Stabilisierung</span>
+                    </div>
+                    <div id="rosc-timer-display" class="text-2xl sm:text-3xl font-mono font-black tracking-tight text-emerald-800 leading-none mt-1">00:00</div>
                 </div>
-            </div>
-            <div id="stat-rosc" class="hidden flex-[1.5] bg-emerald-100 p-2.5 rounded-xl border border-emerald-300 shadow-sm justify-between items-center transition-all">
-                <div class="flex flex-col items-start">
-                    <span class="text-[9px] font-black text-emerald-700 uppercase tracking-widest flex items-center gap-1"><i class="fa-solid fa-heart-pulse"></i> Stabilisierung</span>
-                </div>
-                <div id="rosc-timer-display" class="text-2xl sm:text-3xl font-mono font-black tracking-tight text-emerald-800 leading-none mt-1">00:00</div>
             </div>
         </div>
     </div>
@@ -96,13 +108,6 @@
     <!-- CPR INTERFACE (Mathematisch auf den Grid-Nullpunkt zentriert) -->
     <main id="cpr-interface" class="flex-1 relative z-20 w-full">
         
-        <div class="absolute top-4 left-0 right-0 w-full px-4 z-[60] pointer-events-none">
-            <div id="medical-disclaimer" class="w-full max-w-sm mx-auto bg-red-50/95 backdrop-blur-sm border-2 border-red-500 rounded-2xl p-3 shadow-sm text-center pointer-events-auto">
-                <h2 class="text-red-700 font-black uppercase tracking-widest text-xs mb-1"><i class="fa-solid fa-triangle-exclamation text-red-600 mr-1.5"></i>Wichtiger Hinweis</h2>
-                <p class="text-red-800 text-[10px] font-bold leading-tight">Assistenz- & Trainingswerkzeug für med. Fachpersonal. Ersetzt keine ärztliche Entscheidung. Alle Dosierungen sind eigenverantwortlich zu prüfen. Nutzung auf eigene Gefahr.</p>
-            </div>
-        </div>
-
         <!-- 🌟 KREIS-MENÜ (ORBIT) 🌟 -->
         <div id="orbit-wrapper" class="absolute inset-0 flex items-center justify-center pointer-events-none z-[55]">
             <div class="relative flex items-center justify-center">
