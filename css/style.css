@@ -18,22 +18,22 @@ body { overscroll-behavior-y: none; background-color: #f8fafc; }
 :root {
     /* MOBILE FIRST (Handys) - SAFE FIBONACCI (Anti-Scroll) */
     --sat-size: 76px;
-    --orbit-radius: 163px;   /* 115px (Zentrum) + 10px (Gap) + 38px (Sat) */
+    --orbit-radius: 160px;   /* 112px (Zentrum) + 10px (Gap) + 38px (Sat) */
     --main-size: 85px;
     --main-x: 125px;         /* Mehr zur Seite geschoben... */
     --main-y: 255px;         /* ...damit Y sicher oben bleibt und nichts abschneidet! */
-    --center-btn-size: 230px;
+    --center-btn-size: 224px;
 }
 
 @media (min-width: 768px) {
     :root {
         /* iPAD & TABLET - SAFE SCALED */
         --sat-size: 85px;
-        --orbit-radius: 174px; /* iPad hat minimal mehr Platz, daher auch hier leicht kompakter */
+        --orbit-radius: 180px; /* 127px (Zentrum) + 10px (Gap) + 43px (Sat) */
         --main-size: 100px;
         --main-x: 145px;
         --main-y: 280px;
-        --center-btn-size: 260px;
+        --center-btn-size: 254px;
     }
 }
 
