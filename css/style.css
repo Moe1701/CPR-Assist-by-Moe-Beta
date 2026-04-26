@@ -1,350 +1,222 @@
-window.CPR = window.CPR || {};
+/* ==========================================
+   1. GRUNDEINSTELLUNGEN & RESET
+   ========================================== */
+* { -webkit-tap-highlight-color: transparent; }
+body { overscroll-behavior-y: none; background-color: #f8fafc; }
+.no-select { user-select: none; -webkit-user-select: none; }
 
-window.CPR.UI = (function() {
-    return {
-        switchView: function(viewId) {
-            if (window.CPR.Globals) window.CPR.Globals.lastViewSwitch = Date.now();
-            
-            const allViews = [
-                'view-ob-1', 'view-ob-2', 'view-ob-3', 'view-timer', 'view-decision', 
-                'view-cpr-resume', 'view-joule', 'view-airway', 'view-airway-doc', 
-                'view-meds-menu', 'view-zugang', 'view-rosc-end', 'view-abbruch-reason', 
-                'view-initial-breaths'
-            ];
-            
-            allViews.forEach(function(id) {
-                const el = document.getElementById(id);
-                if (el) { 
-                    el.style.display = ''; 
-                    el.classList.add('hidden'); 
-                    el.classList.remove('flex', 'flex-col'); 
-                }
-            });
+/* ==========================================
+   2. SCROLLBAR
+   ========================================== */
+.custom-scrollbar::-webkit-scrollbar { width: 4px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
 
-            let targetId = viewId;
-            if (targetId && targetId.indexOf('view-') !== 0) targetId = 'view-' + targetId;
-            
-            const targetEl = document.getElementById(targetId);
-            if (targetEl) { 
-                targetEl.classList.remove('hidden'); 
-                
-                if(targetId === 'view-timer' || targetId === 'view-meds-menu' || targetId === 'view-airway' || targetId === 'view-airway-doc' || targetId === 'view-zugang' || targetId === 'view-rosc-end' || targetId === 'view-abbruch-reason' || targetId === 'view-cpr-resume') {
-                    targetEl.classList.add('flex', 'flex-col'); 
-                } else {
-                    targetEl.classList.add('flex'); 
-                }
-            }
-            
-            const progCircle = document.getElementById('progress-circle');
-            if (progCircle) { 
-                if (targetId === 'view-timer') progCircle.classList.remove('opacity-0'); 
-                else progCircle.classList.add('opacity-0'); 
-            }
+/* ==========================================
+   3. RESPONSIVES KREIS-MENÜ (Variablen)
+   ========================================== */
+:root {
+    /* MOBILE FIRST (Handys) - SAFE FIBONACCI (Anti-Scroll) */
+    --sat-size: 76px;
+    --orbit-radius: 174px;   /* 115px (Zentrum) + 21px (Gap) + 38px (Sat) */
+    --main-size: 85px;
+    --main-x: 125px;         /* Mehr zur Seite geschoben... */
+    --main-y: 255px;         /* ...damit Y sicher oben bleibt und nichts abschneidet! */
+    --center-btn-size: 230px;
+}
 
-            const disclaimer = document.getElementById('medical-disclaimer');
-            if (disclaimer) { 
-                if (targetId === 'view-ob-1') disclaimer.classList.remove('hidden'); 
-                else disclaimer.classList.add('hidden'); 
-            }
-        },
+@media (min-width: 768px) {
+    :root {
+        /* iPAD & TABLET - SAFE FIBONACCI */
+        --sat-size: 90px;
+        --orbit-radius: 204px;
+        --main-size: 100px;
+        --main-x: 140px;
+        --main-y: 290px;
+        --center-btn-size: 250px;
+    }
+}
 
-        navigate: function(state, view, size) {
-            if (!window.CPR.AppState) return;
-            if (state) {
-                window.CPR.AppState.previousState = window.CPR.AppState.state;
-                window.CPR.AppState.state = state;
-            }
-            if (view) this.switchView(view);
-            if (size) this.setCenterSize(size);
-            
-            const pPanel = document.getElementById('protocol-panel');
-            if (pPanel) pPanel.classList.add('translate-y-full');
-            const hPanel = document.getElementById('hits-panel');
-            if (hPanel) hPanel.classList.add('translate-y-full');
-        },
+.orbit-path { 
+    position: absolute; top: 50%; left: 50%; 
+    transform: translate(-50%, -50%); 
+    border: 2px dashed #e2e8f0; 
+    border-radius: 50%; z-index: 10; pointer-events: none; 
+}
 
-        setCenterSize: function(size) {
-            this.updateOrbitGeometry(size);
-        },
+.satellite-btn { 
+    width: var(--sat-size) !important; 
+    height: var(--sat-size) !important; 
+    margin: 0 !important; 
+    position: absolute !important;
+    top: 50% !important;
+    left: 50% !important;
+    display: flex !important; 
+    flex-direction: column !important; 
+    align-items: center !important; 
+    justify-content: center !important; 
+    z-index: 45 !important; 
+    transition: opacity 0.3s ease, visibility 0.3s ease, transform 0.1s ease, filter 0.1s ease !important; 
+}
 
-        updateOrbitGeometry: function(size) {
-            const mainBtn = document.getElementById('main-btn-area');
-            const sats = document.getElementById('satellites');
-            const wrapper = document.getElementById('orbit-wrapper');
-            const btnAirway = document.getElementById('btn-airway');
-            const btnCpr = document.getElementById('btn-cpr');
-            
-            if (!mainBtn) return;
+/* WICHTIG: Wenn versteckt, dann absolut unsichtbar im Layout! */
+.hidden { 
+    display: none !important; 
+}
 
-            if (size === 'small') {
-                mainBtn.style.width = '260px';
-                mainBtn.style.height = '260px';
-                
-                if (wrapper) {
-                    wrapper.classList.remove('mb-0', 'mt-4');
-                    wrapper.classList.add('mb-[140px]', 'mt-10');
-                }
+#btn-adrenalin { transform: translate(-50%, -50%) rotate(270deg) translate(var(--orbit-radius)) rotate(-270deg) !important; }
+#btn-meds-menu { transform: translate(-50%, -50%) rotate(330deg) translate(var(--orbit-radius)) rotate(-330deg) !important; }
+#btn-toggle-hits { transform: translate(-50%, -50%) rotate(30deg) translate(var(--orbit-radius)) rotate(-30deg) !important; }
+#btn-rosc-end { transform: translate(-50%, -50%) rotate(90deg) translate(var(--orbit-radius)) rotate(-90deg) !important; }
+#btn-toggle-protocol { transform: translate(-50%, -50%) rotate(150deg) translate(var(--orbit-radius)) rotate(-150deg) !important; }
+#btn-zugang-menu { transform: translate(-50%, -50%) rotate(210deg) translate(var(--orbit-radius)) rotate(-210deg) !important; }
 
-                if (btnAirway) btnAirway.classList.remove('opacity-0', 'pointer-events-none');
-                if (btnCpr) btnCpr.classList.remove('opacity-0', 'pointer-events-none');
+#btn-airway, #btn-cpr { 
+    position: absolute !important; top: 50% !important; left: 50% !important; 
+    width: var(--main-size) !important; height: var(--main-size) !important; 
+    margin: 0 !important; border-radius: 9999px !important; z-index: 50 !important; 
+    transition: transform 0.1s ease, opacity 0.4s ease-out, filter 0.1s ease !important; 
+}
+#btn-airway { transform: translate(calc(-50% - var(--main-x)), calc(-50% + var(--main-y))) !important; }
+#btn-cpr { transform: translate(calc(-50% + var(--main-x)), calc(-50% + var(--main-y))) !important; }
 
-                if(sats) {
-                    sats.classList.remove('hidden');
-                    setTimeout(function() {
-                        const btns = sats.querySelectorAll('.satellite-btn');
-                        btns.forEach(function(b) {
-                            b.classList.remove('opacity-0', 'pointer-events-none');
-                        });
-                    }, 50);
-                }
-            } else {
-                mainBtn.style.width = '330px';
-                mainBtn.style.height = '330px';
-                
-                if (wrapper) {
-                    wrapper.classList.remove('mb-[140px]', 'mt-10');
-                    wrapper.classList.add('mb-0', 'mt-4');
-                }
+#btn-adrenalin:active { transform: translate(-50%, -50%) rotate(270deg) translate(var(--orbit-radius)) rotate(-270deg) scale(0.95) !important; filter: brightness(0.9); }
+#btn-meds-menu:active { transform: translate(-50%, -50%) rotate(330deg) translate(var(--orbit-radius)) rotate(-330deg) scale(0.95) !important; filter: brightness(0.9); }
+#btn-toggle-hits:active { transform: translate(-50%, -50%) rotate(30deg) translate(var(--orbit-radius)) rotate(-30deg) scale(0.95) !important; filter: brightness(0.9); }
+#btn-rosc-end:active { transform: translate(-50%, -50%) rotate(90deg) translate(var(--orbit-radius)) rotate(-90deg) scale(0.95) !important; filter: brightness(0.9); }
+#btn-toggle-protocol:active { transform: translate(-50%, -50%) rotate(150deg) translate(var(--orbit-radius)) rotate(-150deg) scale(0.95) !important; filter: brightness(0.9); }
+#btn-zugang-menu:active { transform: translate(-50%, -50%) rotate(210deg) translate(var(--orbit-radius)) rotate(-210deg) scale(0.95) !important; filter: brightness(0.9); }
+#btn-airway:active { transform: translate(calc(-50% - var(--main-x)), calc(-50% + var(--main-y))) scale(0.95) !important; filter: brightness(0.9); }
+#btn-cpr:active { transform: translate(calc(-50% + var(--main-x)), calc(-50% + var(--main-y))) scale(0.95) !important; filter: brightness(0.9); }
 
-                if (btnAirway) btnAirway.classList.add('opacity-0', 'pointer-events-none');
-                if (btnCpr) btnCpr.classList.add('opacity-0', 'pointer-events-none');
+/* ==========================================
+   4. ANIMATIONEN
+   ========================================== */
+.pause-warning { background-color: #fef2f2 !important; border-color: #ef4444 !important; animation: borderPulseFast 1s infinite; }
+.timer-ended { animation: borderPulse 1s infinite; }
+@keyframes borderPulse { 0%, 100% { border-color: #fef2f2; } 50% { border-color: #fca5a5; } }
+@keyframes borderPulseFast { 0%, 100% { border-color: #ef4444; box-shadow: 0 0 20px rgba(239, 68, 68, 0.4); } 50% { border-color: #fca5a5; box-shadow: 0 0 5px rgba(239, 68, 68, 0.1); } }
 
-                if(sats) {
-                    const btns = sats.querySelectorAll('.satellite-btn');
-                    btns.forEach(function(b) {
-                        b.classList.add('opacity-0', 'pointer-events-none');
-                    });
-                    setTimeout(function() { sats.classList.add('hidden'); }, 300);
-                }
-            }
-        },
+/* ==========================================
+   5. UI/UX DEBUG-MODUS 
+   ========================================== */
+body.debug-mode .satellite-btn, body.debug-mode #btn-airway, body.debug-mode #btn-cpr { outline: 2px solid rgba(0, 255, 0, 0.9) !important; background-color: rgba(0, 255, 0, 0.15) !important; }
+body.debug-mode #main-btn-area { outline: 2px solid rgba(255, 0, 0, 0.9) !important; }
+body.debug-mode #orbit-wrapper > div::before { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: calc(var(--orbit-radius) * 2); height: calc(var(--orbit-radius) * 2); border: 3px dashed rgba(0, 100, 255, 0.9) !important; border-radius: 50%; pointer-events: none; z-index: 9999; }
 
-        updateBpmUI: function() {
-            const bpm = (window.CPR.AppState && window.CPR.AppState.bpm) ? window.CPR.AppState.bpm : 110;
-            
-            document.querySelectorAll('.bpm-opt').forEach(function(b) {
-                if (parseInt(b.dataset.bpm) === bpm) {
-                    b.className = 'bpm-opt flex-1 py-3 text-slate-800 font-black text-lg rounded-lg shadow-sm bg-white transition-all transform scale-105 border border-slate-100';
-                } else {
-                    b.className = 'bpm-opt flex-1 py-3 text-slate-400 font-black text-lg rounded-lg transition-all border border-transparent bg-transparent';
-                }
-            });
-        },
+/* ==========================================
+   6. MASTER-ZENTRIERUNG & ARCHITEKTUR-LOGIK
+   ========================================== */
+#orbit-wrapper {
+    position: absolute !important; top: 0 !important; bottom: 0 !important; left: 0 !important; right: 0 !important; margin: 0 !important; padding: 0 !important;
+}
 
-        updatePediatricUI: function() {
-            const badge = document.getElementById('btn-pediatric-edit');
-            const text = document.getElementById('pediatric-weight-display');
-            if (!badge || !text) return;
+#orbit-wrapper > div.relative {
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    transform: translateY(-50px) !important; /* HIER IST DAS UPGRADE: Gesamtes Dashboard 50px höher! */
+}
 
-            if (window.CPR.AppState && window.CPR.AppState.isPediatric) {
-                badge.classList.remove('hidden');
-                text.innerText = window.CPR.AppState.patientWeight ? window.CPR.AppState.patientWeight + ' kg' : 'Unbekannt';
-            } else {
-                badge.classList.add('hidden');
-            }
-        },
+/* 🌟 DER MASTER-KREIS (Immer als Kreis gerendert, auch im Onboarding) 🌟 */
+#main-btn-area {
+    background-color: #ffffff !important;
+    border-radius: 50% !important;
+    overflow: hidden !important; 
+    box-shadow: 0 10px 40px rgba(0,0,0,0.08) !important;
+    transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1), height 0.4s cubic-bezier(0.4, 0, 0.2, 1), transform 0.1s ease, box-shadow 0.1s ease, filter 0.1s ease !important;
+}
 
-        updateCprModeUI: function() {
-            if (!window.CPR.AppState) return;
-            const thumb = document.getElementById('mode-slider-thumb');
-            const lSync = document.getElementById('mode-label-sync');
-            const lKont = document.getElementById('mode-label-kont');
-            if (!thumb || !lSync || !lKont) return;
+#main-btn-area:active {
+    transform: scale(0.97) !important; box-shadow: 0 2px 10px rgba(0,0,0,0.05) !important; filter: brightness(0.97) !important;
+}
 
-            const isKont = window.CPR.AppState.cprMode === 'continuous';
-            if (isKont) {
-                thumb.style.transform = 'translateX(43px)';
-                lSync.className = 'flex-1 text-center text-[10px] font-black z-10 transition-colors duration-300 text-amber-400';
-                lKont.className = 'flex-1 text-center text-[10px] font-black z-10 transition-colors duration-300 text-amber-700';
-            } else {
-                thumb.style.transform = 'translateX(0px)';
-                lSync.className = 'flex-1 text-center text-[10px] font-black z-10 transition-colors duration-300 text-amber-700';
-                lKont.className = 'flex-1 text-center text-[10px] font-black z-10 transition-colors duration-300 text-amber-400';
-                lSync.innerText = window.CPR.AppState.isPediatric ? '15:2' : '30:2';
-            }
-        },
+/* KREIS GROSS: Menüs (Decision, Joule etc.) sind offen (330px / 400px) */
+body.center-menu-open #orbit-wrapper > div.relative, 
+body.center-menu-open #main-btn-area {
+    width: 330px !important;
+    height: 330px !important;
+    z-index: 60 !important; 
+}
+@media (min-width: 768px) {
+    body.center-menu-open #orbit-wrapper > div.relative, 
+    body.center-menu-open #main-btn-area { width: 400px !important; height: 400px !important; }
+}
 
-        // 🌟 CHIRURGISCHER SCHNITT: Native DOM-Steuerung für 100% Sichtbarkeit 🌟
-        updateAdrenalinBadge: function() {
-            const badge = document.getElementById('adr-count-badge');
-            if (!badge) return;
-            
-            const count = window.CPR.AppState ? (window.CPR.AppState.adrCount || 0) : 0;
-            
-            if (count > 0) {
-                badge.style.display = 'flex'; // Unangreifbar gegen CSS
-                badge.innerText = count; 
-            } else {
-                badge.style.display = 'none';
-            }
-        },
+/* KREIS KLEIN: CPR-Timer läuft (230px) */
+body.dashboard-active.cpr-mode-small #orbit-wrapper > div.relative,
+body.dashboard-active.cpr-mode-small #main-btn-area {
+    width: var(--center-btn-size) !important;
+    height: var(--center-btn-size) !important;
+    z-index: 55 !important;
+}
+body.dashboard-active.cpr-mode-small #orbit-wrapper > div.relative {
+    /* HIER IST DAS UPGRADE: Basis -50px, plus die bisherigen -40px für den Timer-Modus = -90px! */
+    transform: translateY(-90px) !important; 
+}
 
-        hideVentilationUI: function() {
-            const badge = document.getElementById('airway-countdown-badge');
-            if (badge) badge.classList.add('hidden');
-            const glowBg = document.getElementById('aw-glow-bg');
-            if (glowBg) glowBg.style.opacity = '0';
-        },
+/* ==========================================
+   7. STRIKTES TIMER-LAYOUT
+   ========================================== */
+.vt-top-text { position: absolute; top: 38px; left: 0; width: 100%; text-align: center; pointer-events: none; }
+.vt-top-text span { font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.1em; opacity: 0.8; transition: color 0.3s ease; }
 
-        updateSmartMedsButton: function() {
-            const btn = document.getElementById('btn-meds-menu');
-            const state = window.CPR.AppState;
-            if (!btn || !state) return;
+.vt-timer-display { position: absolute; top: 65px; left: 0; width: 100%; text-align: center; font-size: 72px; font-weight: 900; line-height: 1; color: #1e293b; letter-spacing: -0.05em; pointer-events: none; transition: color 0.3s ease; }
 
-            const count = state.amioCount || 0;
+.vt-alert-box { position: absolute; top: 145px; left: 0; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; z-index: 10; }
+.vt-alert-row { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }
+.vt-alert-dot { width: 8px; height: 8px; border-radius: 50%; }
+.vt-alert-txt { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; white-space: nowrap; }
+.vt-alert-num { font-size: 32px; font-weight: 900; line-height: 1; }
 
-            if (state.isShockable && count < 2) {
-                let doseText = count === 0 ? "300 mg" : "150 mg";
-                if (state.isPediatric && state.patientWeight) {
-                    doseText = Math.round(state.patientWeight * 5) + " mg";
-                }
+.vt-analyze-badge { padding: 4px 16px; background-color: #E3000F; border-radius: 9999px; box-shadow: 0 0 15px rgba(227,0,15,0.6); margin-bottom: 4px; }
+.vt-analyze-txt { font-size: 12px; font-weight: 800; color: white; text-transform: uppercase; letter-spacing: 0.1em; white-space: nowrap; }
+.vt-analyze-sub { font-size: 10px; font-weight: 800; color: #E3000F; text-transform: uppercase; letter-spacing: 0.1em; white-space: nowrap; }
 
-                btn.innerHTML = `
-                    <div class="flex flex-col items-center justify-center w-full h-full pointer-events-none relative z-10">
-                        <i class="fa-solid fa-syringe text-[24px] mb-1 text-purple-500"></i>
-                        <div class="flex flex-col items-center leading-none mt-0.5 w-full px-1">
-                            <span class="text-[10px] font-bold text-purple-600 uppercase tracking-tighter">Amio.</span>
-                            <span class="text-[11px] font-black text-purple-700 uppercase tracking-tight mt-0.5">${doseText}</span>
-                        </div>
-                    </div>
-                `;
-                btn.classList.remove('bg-white', 'border-purple-100', 'text-slate-500');
-                btn.classList.add('bg-purple-50', 'border-purple-300', 'text-purple-600');
-                
-                btn.dataset.smartMode = "amio";
-                btn.dataset.amioDose = doseText;
-            } else {
-                btn.innerHTML = `
-                    <div class="flex flex-col items-center justify-center w-full h-full pointer-events-none relative z-10">
-                        <i class="fa-solid fa-capsules text-[24px] mb-1 text-slate-400"></i>
-                        <div class="flex flex-col items-center leading-none mt-0.5 w-full px-1">
-                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Meds</span>
-                            <span class="text-[11px] font-black text-purple-700 uppercase tracking-tight mt-0.5">Menü</span>
-                        </div>
-                    </div>
-                `;
-                btn.classList.remove('bg-purple-50', 'border-purple-300', 'text-purple-600');
-                btn.classList.add('bg-white', 'border-purple-100', 'text-slate-500');
-                
-                btn.dataset.smartMode = "menu";
-            }
-        },
+.vt-bottom-info { position: absolute; bottom: 25px; left: 0; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 14px; font-weight: 800; color: #475569; pointer-events: none; }
 
-        recalcMeds: function() {
-            const isPedi = window.CPR.AppState && window.CPR.AppState.isPediatric;
-            const kg = window.CPR.AppState ? window.CPR.AppState.patientWeight : 0;
+/* ==========================================
+   8. MENÜ-CONTAINER (SAUBER! Zerschießt keine Tailwind-Grids mehr!)
+   ========================================== */
+#view-decision:not(.hidden), 
+#view-joule:not(.hidden), 
+#view-cpr-resume:not(.hidden),
+#view-meds-menu:not(.hidden), 
+#view-airway:not(.hidden), 
+#view-zugang:not(.hidden),
+#view-rosc-end:not(.hidden), 
+#view-abbruch-reason:not(.hidden), 
+#view-airway-doc:not(.hidden) {
+    position: absolute !important; 
+    inset: 0 !important; 
+    width: 100% !important; 
+    height: 100% !important;
+    background-color: #ffffff !important;
+    border-radius: 50% !important;
+    overflow: hidden !important; 
+}
 
-            const adrBtn = document.getElementById('btn-adrenalin');
-            const adrText = document.getElementById('adr-text-2');
-            if (adrBtn && adrText) {
-                if (isPedi && kg) {
-                    // NEU: Berechnung in Mikrogramm (10 µg pro kg Körpergewicht)
-                    const dose = Math.round(kg * 10) + ' µg';
-                    adrBtn.dataset.dose = dose;
-                    adrText.innerText = dose;
-                } else {
-                    adrBtn.dataset.dose = '1 mg';
-                    adrText.innerText = '1 mg';
-                }
-            }
+body.dashboard-active #view-decision > button:last-child, 
+body.dashboard-active #view-joule > button:last-child, 
+body.dashboard-active #view-cpr-resume > button:last-child,
+body.dashboard-active #view-meds-menu > button:last-child, 
+body.dashboard-active #view-airway > button:last-child, 
+body.dashboard-active #view-zugang > button:last-child,
+body.dashboard-active #view-rosc-end > button:last-child, 
+body.dashboard-active #view-abbruch-reason > button:last-child {
+    position: absolute !important; 
+    bottom: 25px !important; 
+    left: 50% !important; 
+    transform: translateX(-50%) !important;
+    z-index: 50 !important;
+}
 
-            const amioContainer = document.getElementById('amio-container');
-            if (amioContainer) {
-                if (isPedi && kg) {
-                    const dose = Math.round(kg * 5) + ' mg';
-                    amioContainer.innerHTML = '<button class="btn-amio-opt w-full bg-purple-50 border border-purple-200 text-purple-700 py-3 rounded-xl font-black text-xs uppercase shadow-sm active:scale-95" data-log="Amiodaron ' + dose + '">Amio ' + dose + '</button>';
-                } else {
-                    amioContainer.innerHTML = 
-                        '<button class="btn-amio-opt w-full bg-purple-50 border border-purple-200 text-purple-700 py-3 rounded-xl font-black text-[10px] uppercase shadow-sm active:scale-95" data-log="Amiodaron 300mg">Amio 300mg</button>' +
-                        '<button class="btn-amio-opt w-full bg-purple-50 border border-purple-200 text-purple-700 py-3 rounded-xl font-black text-[10px] uppercase shadow-sm active:scale-95" data-log="Amiodaron 150mg">Amio 150mg</button>';
-                }
-            }
-
-            const sonstContainer = document.getElementById('sonstige-container');
-            if (sonstContainer) {
-                sonstContainer.innerHTML = 
-                    '<button class="btn-sonstige-opt w-full bg-white border border-slate-200 text-slate-600 py-3 rounded-xl font-bold text-[10px] uppercase shadow-sm active:scale-95" data-log="Volumen bolus">Volumen</button>' +
-                    '<button class="btn-sonstige-opt w-full bg-white border border-slate-200 text-slate-600 py-3 rounded-xl font-bold text-[10px] uppercase shadow-sm active:scale-95" data-log="Puffersubstanz (Bikarbonat)">Bikarbonat</button>' +
-                    '<button class="btn-sonstige-opt w-full bg-white border border-slate-200 text-slate-600 py-3 rounded-xl font-bold text-[10px] uppercase shadow-sm active:scale-95" data-log="Calcium">Calcium</button>' +
-                    '<button class="btn-sonstige-opt w-full bg-white border border-slate-200 text-slate-600 py-3 rounded-xl font-bold text-[10px] uppercase shadow-sm active:scale-95" data-log="Magnesium">Magnesium</button>';
-            }
-
-            const jouleContainer = document.getElementById('joule-container');
-            if (jouleContainer) {
-                if (isPedi && kg) {
-                    const j4 = Math.round(kg * 4);
-                    const j8 = Math.round(kg * 8);
-                    jouleContainer.innerHTML = 
-                        '<div class="flex gap-3 w-full justify-center">' +
-                        '<button class="btn-joule flex-1 bg-yellow-50 border-2 border-yellow-300 text-yellow-700 py-5 rounded-[1.5rem] font-black text-2xl shadow-sm active:scale-95 transition-all" data-joule="' + j4 + ' J">' + j4 + ' J<br><span class="text-[11px] font-bold opacity-70">4 J/kg</span></button>' +
-                        '<button class="btn-joule flex-1 bg-yellow-50 border-2 border-yellow-300 text-yellow-700 py-5 rounded-[1.5rem] font-black text-2xl shadow-sm active:scale-95 transition-all" data-joule="' + j8 + ' J">' + j8 + ' J<br><span class="text-[11px] font-bold opacity-70">8 J/kg</span></button>' +
-                        '</div>';
-                } else {
-                    jouleContainer.innerHTML = 
-                        '<button class="btn-joule w-[70%] mx-auto bg-yellow-50 border-2 border-yellow-300 text-yellow-700 py-4 rounded-[1.5rem] font-black text-2xl shadow-sm active:scale-95 transition-all mb-3" data-joule="150 J">150 J</button>' +
-                        '<div class="flex gap-3 w-full justify-center">' +
-                        '<button class="btn-joule flex-1 bg-yellow-50 border-2 border-yellow-300 text-yellow-700 py-4 rounded-[1.5rem] font-black text-2xl shadow-sm active:scale-95 transition-all" data-joule="200 J">200 J</button>' +
-                        '<button class="btn-joule flex-1 bg-yellow-50 border-2 border-yellow-300 text-yellow-700 py-4 rounded-[1.5rem] font-black text-2xl shadow-sm active:scale-95 transition-all" data-joule="360 J">360 J</button>' +
-                        '</div>';
-                }
-            }
-
-            const awContainer = document.getElementById('airway-buttons-container');
-            const pediAwInfo = document.getElementById('pediatric-airway-info');
-
-            if (isPedi && kg) {
-                if (pediAwInfo) pediAwInfo.classList.remove('hidden');
-                let activeZone = null;
-                if (window.CPR.broselowData) {
-                    activeZone = window.CPR.broselowData.find(function(z) { return kg >= z.minKg && kg <= z.maxKg; });
-                    if (!activeZone) activeZone = window.CPR.broselowData[window.CPR.broselowData.length - 1];
-                    if (kg < 6 && kg >= 3) {
-                        if (kg <= 5) activeZone = window.CPR.broselowData.find(function(z) { return z.color === 'grau'; });
-                        else activeZone = window.CPR.broselowData.find(function(z) { return z.color === 'rosa'; });
-                    }
-                }
-                if (activeZone && activeZone.airway) {
-                    const elKg = document.getElementById('airway-info-kg'); if (elKg) elKg.innerText = kg + ' kg';
-                    const elTubus = document.getElementById('airway-info-tubus'); if (elTubus) elTubus.innerText = activeZone.airway.tubus;
-                    const elTiefe = document.getElementById('airway-info-tiefe'); if (elTiefe) elTiefe.innerText = activeZone.airway.tiefe;
-                    const elWendel = document.getElementById('airway-info-wendel'); if (elWendel) elWendel.innerText = activeZone.airway.wendel;
-                    const elGuedel = document.getElementById('airway-info-guedel'); if (elGuedel) elGuedel.innerText = activeZone.airway.guedel;
-                }
-            } else {
-                if (pediAwInfo) pediAwInfo.classList.add('hidden');
-            }
-
-            if (awContainer) {
-                awContainer.innerHTML = 
-                    '<button class="btn-airway-opt flex-1 bg-cyan-50 border border-cyan-200 text-cyan-700 py-3 rounded-xl font-black text-xs shadow-sm active:scale-95" data-short="ETI">ETI<br><span class="text-[8px] font-bold opacity-70">Intubation</span></button>' +
-                    '<button class="btn-airway-opt flex-1 bg-cyan-50 border border-cyan-200 text-cyan-700 py-3 rounded-xl font-black text-xs shadow-sm active:scale-95" data-short="i-gel">i-gel<br><span class="text-[8px] font-bold opacity-70">SGA</span></button>' +
-                    '<button class="btn-airway-opt flex-1 bg-cyan-50 border border-cyan-200 text-cyan-700 py-3 rounded-xl font-black text-xs shadow-sm active:scale-95" data-short="LAMA">LAMA<br><span class="text-[8px] font-bold opacity-70">Larynxmaske</span></button>' +
-                    '<button class="btn-airway-opt flex-1 bg-cyan-50 border border-cyan-200 text-cyan-700 py-3 rounded-xl font-black text-xs shadow-sm active:scale-95" data-short="LTS">LTS<br><span class="text-[8px] font-bold opacity-70">Larynxtubus</span></button>';
-            }
-
-            this.updateSmartMedsButton();
-        },
-
-        updateCircle: function(canvasId, pct, color) {
-            const canvas = document.getElementById(canvasId);
-            if (!canvas) return;
-            
-            const ctx = canvas.getContext('2d');
-            const w = canvas.width;
-            const h = canvas.height;
-            const center = w / 2;
-            const r = center - 8; 
-
-            ctx.clearRect(0, 0, w, h);
-            
-            if (pct > 0) {
-                ctx.beginPath();
-                ctx.arc(center, center, r, 0, 2 * Math.PI * pct);
-                ctx.strokeStyle = color || '#E3000F';
-                ctx.lineWidth = canvasId === 'progress-circle' ? 10 : 6;
-                ctx.lineCap = 'round';
-                ctx.stroke();
-            }
-        }
-    };
-})();
+/* ==========================================
+   9. ARCHITEKTUR-FIX: SATELLITEN AUSBLENDEN
+   ========================================== */
+body.dashboard-active.center-menu-open .satellite-btn,
+body.dashboard-active.center-menu-open #btn-airway,
+body.dashboard-active.center-menu-open #btn-cpr {
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    transform: scale(0.5) !important;
+}
