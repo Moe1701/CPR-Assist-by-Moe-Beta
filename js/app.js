@@ -4,7 +4,7 @@
  * - UI UPGRADE: Millimetergenaue Y-Positionen verhindern jedes Herausrutschen!
  * - LOGIC FIX: Timer schaltet nicht mehr automatisch um, sondern eskaliert!
  * - ARCHITECTURE: Satelliten werden beim Öffnen von Menüs global im CSS ausgeblendet!
- * - CLEANUP: Überlässt der log-timeline.js die volle Kontrolle über die Tabs.
+ * - BUGFIX (navHelper): Verhindert das Ausblenden der UI beim App-Resume aus dem Hintergrund.
  */
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -72,7 +72,8 @@ document.addEventListener('DOMContentLoaded', function() {
     function navHelper(newState, viewId, size) {
         if (newState) { AppState.previousState = AppState.state; AppState.state = newState; }
         
-        if (UI && typeof UI.switchView === 'function') { 
+        // CHIRURGISCHER BUGFIX: Nur umschalten, wenn auch wirklich eine viewId übergeben wurde!
+        if (viewId && UI && typeof UI.switchView === 'function') { 
             UI.switchView(viewId); 
         }
         
@@ -204,6 +205,16 @@ document.addEventListener('DOMContentLoaded', function() {
             ccfDisplay.innerText = Math.min(100, Math.round(rawCcf)) + "%";
             ccfDisplay.className = "text-2xl sm:text-3xl font-black " + (rawCcf >= 80 ? 'text-emerald-500' : 'text-[#E3000F]');
         }
+    }
+
+    function showMainInterface() {
+        const ab = document.getElementById('btn-airway');
+        const cb = document.getElementById('btn-cpr');
+        if (ab) ab.style.opacity = '1';
+        if (cb) cb.style.opacity = '1';
+        
+        if(UI && typeof UI.updateCprModeUI === 'function') UI.updateCprModeUI();
+        if(window.CPR.MedsButton && typeof window.CPR.MedsButton.init === 'function') window.CPR.MedsButton.init();
     }
 
     window.CPR.onBeat = function() {
@@ -692,7 +703,13 @@ document.addEventListener('DOMContentLoaded', function() {
         addClick('btn-rosc-cancel', (e) => { e.stopPropagation(); markMenuAction(); navHelper(AppState.previousState === 'RUNNING' ? 'RUNNING' : 'DECISION', AppState.previousState === 'RUNNING' ? 'view-timer' : 'view-decision', AppState.previousState === 'RUNNING' ? 'small' : 'large'); });
         
         addClick('btn-opt-rosc', (e) => {
-            e.stopPropagation(); markMenuAction(); addLogEntry("ROSC!"); AppState.state = 'ROSC_ACTIVE'; Utils.saveSession(); AppState.isCompressing = false;
+            e.stopPropagation(); markMenuAction(); 
+            if (window.addLogEntry) {
+                const m = Math.floor((window.CPR.AppState.totalSeconds || 0) / 60);
+                const s = (window.CPR.AppState.totalSeconds || 0) % 60;
+                window.addLogEntry(`ROSC eingetreten nach ${m} Min ${s} Sek`);
+            }
+            AppState.state = 'ROSC_ACTIVE'; Utils.saveSession(); AppState.isCompressing = false;
             if (Globals.pauseInterval) { clearInterval(Globals.pauseInterval); Globals.pauseInterval = null; }
             if (CPR.CPRTimer && typeof CPR.CPRTimer.pause === 'function') CPR.CPRTimer.pause(); 
             document.getElementById('main-btn-area')?.classList.remove('timer-ended'); document.getElementById('cpr-interface')?.classList.add('hidden'); document.getElementById('rosc-interface')?.classList.remove('hidden'); document.getElementById('top-stats-container')?.classList.remove('hidden'); document.getElementById('stat-ccf')?.classList.add('hidden'); document.getElementById('stat-rosc')?.classList.remove('hidden');
