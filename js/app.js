@@ -6,6 +6,7 @@
  * - ARCHITECTURE: Satelliten werden beim Öffnen von Menüs global im CSS ausgeblendet!
  * - BUGFIX (navHelper): Verhindert das Ausblenden der UI beim App-Resume aus dem Hintergrund.
  * - BUGFIX (Sonnenfinsternis): Hardcodierte DOM opacity-0 Klassen werden bei Dashboard-Init bereinigt.
+ * - UX FIX (Space Reservation): Target-Displacement im Onboarding behoben. Button hüpft nicht mehr!
  */
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -154,7 +155,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function startMainTimer() {
         const topStats = document.getElementById('top-stats-container');
-        if (topStats) topStats.classList.remove('hidden');
+        // 🌟 SPACE RESERVATION FIX: Unsichtbarkeit aufheben statt 'hidden' zu toggeln
+        if (topStats) topStats.classList.remove('opacity-0', 'pointer-events-none');
+        
         const startTimeEl = document.getElementById('start-time');
         if (startTimeEl && startTimeEl.innerText === '--:--') startTimeEl.innerText = "Start: " + new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
         
@@ -717,14 +720,29 @@ document.addEventListener('DOMContentLoaded', function() {
             AppState.state = 'ROSC_ACTIVE'; Utils.saveSession(); AppState.isCompressing = false;
             if (Globals.pauseInterval) { clearInterval(Globals.pauseInterval); Globals.pauseInterval = null; }
             if (CPR.CPRTimer && typeof CPR.CPRTimer.pause === 'function') CPR.CPRTimer.pause(); 
-            document.getElementById('main-btn-area')?.classList.remove('timer-ended'); document.getElementById('cpr-interface')?.classList.add('hidden'); document.getElementById('rosc-interface')?.classList.remove('hidden'); document.getElementById('top-stats-container')?.classList.remove('hidden'); document.getElementById('stat-ccf')?.classList.add('hidden'); document.getElementById('stat-rosc')?.classList.remove('hidden');
+            document.getElementById('main-btn-area')?.classList.remove('timer-ended'); 
+            document.getElementById('cpr-interface')?.classList.add('hidden'); 
+            document.getElementById('rosc-interface')?.classList.remove('hidden'); 
+            
+            // 🌟 SPACE RESERVATION FIX: 
+            document.getElementById('top-stats-container')?.classList.remove('opacity-0', 'pointer-events-none'); 
+            
+            document.getElementById('stat-ccf')?.classList.add('hidden'); 
+            document.getElementById('stat-rosc')?.classList.remove('hidden');
             updatePediRoscVitals(); startRoscTimer();
         });
         
         addClick('btn-rearrest', (e) => {
             e.stopPropagation(); Utils.vibrate([50, 50, 50]); markMenuAction(); addLogEntry("RE-ARREST! CPR fortgesetzt.");
             if (Globals.roscInterval) { clearInterval(Globals.roscInterval); Globals.roscInterval = null; }
-            document.getElementById('rosc-interface')?.classList.add('hidden'); document.getElementById('cpr-interface')?.classList.remove('hidden'); document.getElementById('top-stats-container')?.classList.remove('hidden'); document.getElementById('stat-rosc')?.classList.add('hidden'); document.getElementById('stat-ccf')?.classList.remove('hidden');
+            document.getElementById('rosc-interface')?.classList.add('hidden'); 
+            document.getElementById('cpr-interface')?.classList.remove('hidden'); 
+            
+            // 🌟 SPACE RESERVATION FIX: 
+            document.getElementById('top-stats-container')?.classList.remove('opacity-0', 'pointer-events-none'); 
+            
+            document.getElementById('stat-rosc')?.classList.add('hidden'); 
+            document.getElementById('stat-ccf')?.classList.remove('hidden');
             activateDashboard(); updateCprUI();
         });
 
@@ -834,21 +852,28 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (AppState.state === 'ROSC_ACTIVE') {
                     document.getElementById('cpr-interface')?.classList.add('hidden'); 
                     document.getElementById('rosc-interface')?.classList.remove('hidden'); 
-                    document.getElementById('top-stats-container')?.classList.remove('hidden'); 
+                    
+                    // 🌟 SPACE RESERVATION FIX: 
+                    document.getElementById('top-stats-container')?.classList.remove('opacity-0', 'pointer-events-none'); 
+                    
                     document.getElementById('stat-ccf')?.classList.add('hidden'); 
                     document.getElementById('stat-rosc')?.classList.remove('hidden');
                     updatePediRoscVitals(); 
                     if (AppState.isRunning !== false) { startMainTimer(); startRoscTimer(); } 
                     requestWakeLock();
                 } else { 
-                    document.getElementById('top-stats-container')?.classList.remove('hidden'); 
+                    // 🌟 SPACE RESERVATION FIX: 
+                    document.getElementById('top-stats-container')?.classList.remove('opacity-0', 'pointer-events-none'); 
+                    
                     navHelper(null, 'view-timer', 'small'); 
                     if(AppState.isRunning === false) { document.getElementById('debriefing-modal')?.classList.replace('hidden', 'flex'); } 
                 }
             } else if (AppState.state !== 'IDLE' && AppState.state.indexOf('OB_') !== 0) {
                 document.body.classList.add('dashboard-active');
                 
-                document.getElementById('top-stats-container')?.classList.remove('hidden'); 
+                // 🌟 SPACE RESERVATION FIX: 
+                document.getElementById('top-stats-container')?.classList.remove('opacity-0', 'pointer-events-none'); 
+                
                 document.getElementById('satellites')?.classList.remove('hidden');
                 ['btn-airway', 'btn-cpr'].forEach(id => { document.getElementById(id)?.classList.remove('opacity-0', 'pointer-events-none'); });
                 
@@ -952,8 +977,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const topStats = document.getElementById('top-stats-container');
         const header = document.querySelector('header');
+        
+        // 🌟 DEBUG-GRID FIX: Der topStats Container reserviert immer Platz,
+        // daher ist seine Bottom-Kante jetzt der ewige Ankerpunkt der App!
         let topY = header ? header.getBoundingClientRect().bottom : 0;
-        if (topStats && !topStats.classList.contains('hidden')) {
+        if (topStats) {
             topY = topStats.getBoundingClientRect().bottom;
         }
 
