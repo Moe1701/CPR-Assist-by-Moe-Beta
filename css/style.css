@@ -1,192 +1,350 @@
-/* ==========================================
-   1. GRUNDEINSTELLUNGEN & RESET
-   ========================================== */
-* { -webkit-tap-highlight-color: transparent; }
-body { overscroll-behavior-y: none; background-color: #f8fafc; }
-.no-select { user-select: none; -webkit-user-select: none; }
+window.CPR = window.CPR || {};
 
-/* ==========================================
-   2. SCROLLBAR
-   ========================================== */
-.custom-scrollbar::-webkit-scrollbar { width: 4px; }
-.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-.custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+window.CPR.UI = (function() {
+    return {
+        switchView: function(viewId) {
+            if (window.CPR.Globals) window.CPR.Globals.lastViewSwitch = Date.now();
+            
+            const allViews = [
+                'view-ob-1', 'view-ob-2', 'view-ob-3', 'view-timer', 'view-decision', 
+                'view-cpr-resume', 'view-joule', 'view-airway', 'view-airway-doc', 
+                'view-meds-menu', 'view-zugang', 'view-rosc-end', 'view-abbruch-reason', 
+                'view-initial-breaths'
+            ];
+            
+            allViews.forEach(function(id) {
+                const el = document.getElementById(id);
+                if (el) { 
+                    el.style.display = ''; 
+                    el.classList.add('hidden'); 
+                    el.classList.remove('flex', 'flex-col'); 
+                }
+            });
 
-/* ==========================================
-   3. RESPONSIVES KREIS-MENÜ (Variablen)
-   ========================================== */
-:root {
-    /* MOBILE FIRST (Handys) - SAFE FIBONACCI (Anti-Scroll) */
-    --sat-size: 76px;
-    --orbit-radius: 160px;   /* 112px (Zentrum) + 10px (Gap) + 38px (Sat) */
-    --main-size: 85px;
-    --main-x: 125px;         /* Mehr zur Seite geschoben... */
-    --main-y: 255px;         /* ...damit Y sicher oben bleibt und nichts abschneidet! */
-    --center-btn-size: 224px;
-}
+            let targetId = viewId;
+            if (targetId && targetId.indexOf('view-') !== 0) targetId = 'view-' + targetId;
+            
+            const targetEl = document.getElementById(targetId);
+            if (targetEl) { 
+                targetEl.classList.remove('hidden'); 
+                
+                if(targetId === 'view-timer' || targetId === 'view-meds-menu' || targetId === 'view-airway' || targetId === 'view-airway-doc' || targetId === 'view-zugang' || targetId === 'view-rosc-end' || targetId === 'view-abbruch-reason' || targetId === 'view-cpr-resume') {
+                    targetEl.classList.add('flex', 'flex-col'); 
+                } else {
+                    targetEl.classList.add('flex'); 
+                }
+            }
+            
+            const progCircle = document.getElementById('progress-circle');
+            if (progCircle) { 
+                if (targetId === 'view-timer') progCircle.classList.remove('opacity-0'); 
+                else progCircle.classList.add('opacity-0'); 
+            }
 
-@media (min-width: 768px) {
-    :root {
-        /* iPAD & TABLET - SAFE SCALED */
-        --sat-size: 85px;
-        --orbit-radius: 180px; /* 127px (Zentrum) + 10px (Gap) + 43px (Sat) */
-        --main-size: 100px;
-        --main-x: 145px;
-        --main-y: 280px;
-        --center-btn-size: 254px;
-    }
-}
+            const disclaimer = document.getElementById('medical-disclaimer');
+            if (disclaimer) { 
+                if (targetId === 'view-ob-1') disclaimer.classList.remove('hidden'); 
+                else disclaimer.classList.add('hidden'); 
+            }
+        },
 
-/* ==========================================
-   4. ORBIT-GEOMETRIE (Das Layout-Herzstück)
-   ========================================== */
-.satellite-btn {
-    position: absolute;
-    width: var(--sat-size);
-    height: var(--sat-size);
-    left: 50%;
-    top: 50%;
-    margin-left: calc(var(--sat-size) / -2);
-    margin-top: calc(var(--sat-size) / -2);
-    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-    transform: scale(1);
-    z-index: 40;
-    will-change: transform, left, top;
-}
+        navigate: function(state, view, size) {
+            if (!window.CPR.AppState) return;
+            if (state) {
+                window.CPR.AppState.previousState = window.CPR.AppState.state;
+                window.CPR.AppState.state = state;
+            }
+            if (view) this.switchView(view);
+            if (size) this.setCenterSize(size);
+            
+            const pPanel = document.getElementById('protocol-panel');
+            if (pPanel) pPanel.classList.add('translate-y-full');
+            const hPanel = document.getElementById('hits-panel');
+            if (hPanel) hPanel.classList.add('translate-y-full');
+        },
 
-.satellite-btn:active { transform: scale(0.92) !important; }
+        setCenterSize: function(size) {
+            this.updateOrbitGeometry(size);
+        },
 
-/* ==========================================
-   5. SATELLITEN-POSITIONEN (Absolut)
-   ========================================== */
-#btn-adrenalin     { transform: translate(calc(var(--orbit-radius) * -0.96), calc(var(--orbit-radius) * -0.25)); }
-#btn-meds-menu     { transform: translate(calc(var(--orbit-radius) * 0.96), calc(var(--orbit-radius) * -0.25)); }
+        updateOrbitGeometry: function(size) {
+            const mainBtn = document.getElementById('main-btn-area');
+            const sats = document.getElementById('satellites');
+            const wrapper = document.getElementById('orbit-wrapper');
+            const btnAirway = document.getElementById('btn-airway');
+            const btnCpr = document.getElementById('btn-cpr');
+            
+            if (!mainBtn) return;
 
-#btn-toggle-hits   { transform: translate(calc(var(--orbit-radius) * -0.7), calc(var(--orbit-radius) * -0.7)); }
-#btn-rosc-end      { transform: translate(calc(var(--orbit-radius) * 0.7), calc(var(--orbit-radius) * -0.7)); }
+            if (size === 'small') {
+                mainBtn.style.width = '260px';
+                mainBtn.style.height = '260px';
+                
+                if (wrapper) {
+                    wrapper.classList.remove('mb-0', 'mt-4');
+                    wrapper.classList.add('mb-[140px]', 'mt-10');
+                }
 
-#btn-toggle-protocol { transform: translate(calc(var(--orbit-radius) * -0.7), calc(var(--orbit-radius) * 0.7)); }
-#btn-zugang-menu   { transform: translate(calc(var(--orbit-radius) * 0.7), calc(var(--orbit-radius) * 0.7)); }
+                if (btnAirway) btnAirway.classList.remove('opacity-0', 'pointer-events-none');
+                if (btnCpr) btnCpr.classList.remove('opacity-0', 'pointer-events-none');
 
-/* ==========================================
-   6. VERSTECK-LOGIK BEI OFFENEM MENÜ
-   ========================================== */
-body.dashboard-active.center-menu-open .satellite-btn {
-    opacity: 0 !important;
-    visibility: hidden !important;
-    pointer-events: none !important;
-}
+                if(sats) {
+                    sats.classList.remove('hidden');
+                    setTimeout(function() {
+                        const btns = sats.querySelectorAll('.satellite-btn');
+                        btns.forEach(function(b) {
+                            b.classList.remove('opacity-0', 'pointer-events-none');
+                        });
+                    }, 50);
+                }
+            } else {
+                mainBtn.style.width = '330px';
+                mainBtn.style.height = '330px';
+                
+                if (wrapper) {
+                    wrapper.classList.remove('mb-[140px]', 'mt-10');
+                    wrapper.classList.add('mb-0', 'mt-4');
+                }
 
-/* ==========================================
-   7. DIE BEIDEN HAUPT-BUTTONS (CPR & Atemweg)
-   ========================================== */
-#btn-airway, #btn-cpr {
-    position: absolute;
-    width: var(--main-size);
-    height: var(--main-size);
-    left: 50%;
-    margin-left: calc(var(--main-size) / -2);
-    top: 50%;
-    margin-top: calc(var(--main-size) / -2);
-    border-radius: 50%;
-    z-index: 45;
-    transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-    will-change: transform, opacity;
-}
+                if (btnAirway) btnAirway.classList.add('opacity-0', 'pointer-events-none');
+                if (btnCpr) btnCpr.classList.add('opacity-0', 'pointer-events-none');
 
-#btn-airway { transform: translate(calc(var(--main-x) * -1), var(--main-y)); }
-#btn-cpr    { transform: translate(var(--main-x), var(--main-y)); }
+                if(sats) {
+                    const btns = sats.querySelectorAll('.satellite-btn');
+                    btns.forEach(function(b) {
+                        b.classList.add('opacity-0', 'pointer-events-none');
+                    });
+                    setTimeout(function() { sats.classList.add('hidden'); }, 300);
+                }
+            }
+        },
 
-/* Im Onboarding/Menü verstecken */
-body:not(.dashboard-active) #btn-airway,
-body:not(.dashboard-active) #btn-cpr,
-body.dashboard-active.center-menu-open #btn-airway,
-body.dashboard-active.center-menu-open #btn-cpr {
-    opacity: 0 !important;
-    pointer-events: none !important;
-}
+        updateBpmUI: function() {
+            const bpm = (window.CPR.AppState && window.CPR.AppState.bpm) ? window.CPR.AppState.bpm : 110;
+            
+            document.querySelectorAll('.bpm-opt').forEach(function(b) {
+                if (parseInt(b.dataset.bpm) === bpm) {
+                    b.className = 'bpm-opt flex-1 py-3 text-slate-800 font-black text-lg rounded-lg shadow-sm bg-white transition-all transform scale-105 border border-slate-100';
+                } else {
+                    b.className = 'bpm-opt flex-1 py-3 text-slate-400 font-black text-lg rounded-lg transition-all border border-transparent bg-transparent';
+                }
+            });
+        },
 
-/* ==========================================
-   8. ANIMATIONEN
-   ========================================== */
-@keyframes heart-pulse {
-    0%   { transform: scale(1); }
-    50%  { transform: scale(1.15); }
-    100% { transform: scale(1); }
-}
-.animate-pulse { animation: heart-pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        updatePediatricUI: function() {
+            const badge = document.getElementById('btn-pediatric-edit');
+            const text = document.getElementById('pediatric-weight-display');
+            if (!badge || !text) return;
 
-/* ==========================================
-   9. DAS ZENTRUM (Dashboard & Menüs)
-   ========================================== */
+            if (window.CPR.AppState && window.CPR.AppState.isPediatric) {
+                badge.classList.remove('hidden');
+                text.innerText = window.CPR.AppState.patientWeight ? window.CPR.AppState.patientWeight + ' kg' : 'Unbekannt';
+            } else {
+                badge.classList.add('hidden');
+            }
+        },
 
-/* Wenn im Dashboard und Timer aktiv (Kreis klein) */
-body.dashboard-active.cpr-mode-small #main-btn-area {
-    width: var(--center-btn-size) !important;
-    height: var(--center-btn-size) !important;
-}
+        updateCprModeUI: function() {
+            if (!window.CPR.AppState) return;
+            const thumb = document.getElementById('mode-slider-thumb');
+            const lSync = document.getElementById('mode-label-sync');
+            const lKont = document.getElementById('mode-label-kont');
+            if (!thumb || !lSync || !lKont) return;
 
-/* Wenn Menü offen oder Onboarding (Kreis groß) */
-body.center-menu-open #main-btn-area {
-    width: 330px !important;
-    height: 330px !important;
-}
+            const isKont = window.CPR.AppState.cprMode === 'continuous';
+            if (isKont) {
+                thumb.style.transform = 'translateX(43px)';
+                lSync.className = 'flex-1 text-center text-[10px] font-black z-10 transition-colors duration-300 text-amber-400';
+                lKont.className = 'flex-1 text-center text-[10px] font-black z-10 transition-colors duration-300 text-amber-700';
+            } else {
+                thumb.style.transform = 'translateX(0px)';
+                lSync.className = 'flex-1 text-center text-[10px] font-black z-10 transition-colors duration-300 text-amber-700';
+                lKont.className = 'flex-1 text-center text-[10px] font-black z-10 transition-colors duration-300 text-amber-400';
+                lSync.innerText = window.CPR.AppState.isPediatric ? '15:2' : '30:2';
+            }
+        },
 
-/* Timer-Ansicht Logik (Neu: Absolut-Positionierung für garantierte Stabilität) */
-.vt-top-text { position: absolute; top: 10px; width: 100%; display: flex; flex-direction: column; align-items: center; pointer-events: none; z-index: 30; }
-.vt-top-text span { font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.1em; transition: color 0.3s; }
+        // 🌟 CHIRURGISCHER SCHNITT: Native DOM-Steuerung für 100% Sichtbarkeit 🌟
+        updateAdrenalinBadge: function() {
+            const badge = document.getElementById('adr-count-badge');
+            if (!badge) return;
+            
+            const count = window.CPR.AppState ? (window.CPR.AppState.adrCount || 0) : 0;
+            
+            if (count > 0) {
+                badge.style.display = 'flex'; // Unangreifbar gegen CSS
+                badge.innerText = count; 
+            } else {
+                badge.style.display = 'none';
+            }
+        },
 
-.vt-timer-display { position: absolute; top: 35px; width: 100%; display: flex; justify-content: center; font-size: 72px; font-family: monospace; font-weight: 900; letter-spacing: -0.05em; color: #1e293b; line-height: 1; pointer-events: none; z-index: 20; }
+        hideVentilationUI: function() {
+            const badge = document.getElementById('airway-countdown-badge');
+            if (badge) badge.classList.add('hidden');
+            const glowBg = document.getElementById('aw-glow-bg');
+            if (glowBg) glowBg.style.opacity = '0';
+        },
 
-.vt-alert-box { position: absolute; top: 120px; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; z-index: 40; }
-.vt-alert-row { background-color: #fff; padding: 4px 16px; border-radius: 9999px; display: flex; items-center; gap: 6px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); border: 1px solid #f1f5f9; }
-.vt-alert-dot { width: 8px; height: 8px; border-radius: 50%; }
-.vt-alert-txt { font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.1em; }
-.vt-alert-num { font-size: 24px; font-weight: 900; margin-top: 2px; text-shadow: 0 2px 4px rgb(0 0 0 / 0.1); }
+        updateSmartMedsButton: function() {
+            const btn = document.getElementById('btn-meds-menu');
+            const state = window.CPR.AppState;
+            if (!btn || !state) return;
 
-.vt-analyze-badge { background-color: #E3000F; color: white; padding: 6px 20px; border-radius: 9999px; display: flex; flex-direction: column; align-items: center; box-shadow: 0 10px 15px -3px rgb(227 0 15 / 0.4); border: 2px solid #fca5a5; }
-.vt-analyze-txt { font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.1em; }
-.vt-analyze-sub { font-size: 10px; font-weight: 700; color: #E3000F; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.05em; }
+            const count = state.amioCount || 0;
 
-.vt-bottom-info { position: absolute; bottom: 25px; width: 100%; display: flex; justify-content: center; align-items: center; gap: 8px; font-size: 12px; font-weight: 900; color: #334155; pointer-events: none; z-index: 30; }
+            if (state.isShockable && count < 2) {
+                let doseText = count === 0 ? "300 mg" : "150 mg";
+                if (state.isPediatric && state.patientWeight) {
+                    doseText = Math.round(state.patientWeight * 5) + " mg";
+                }
 
-/* Menü-Overlays zwingend in den Rand pressen */
-#view-decision:not(.hidden), 
-#view-joule:not(.hidden), 
-#view-cpr-resume:not(.hidden),
-#view-meds-menu:not(.hidden), 
-#view-airway:not(.hidden), 
-#view-zugang:not(.hidden),
-#view-rosc-end:not(.hidden), 
-#view-abbruch-reason:not(.hidden), 
-#view-airway-doc:not(.hidden) {
-    position: absolute !important; 
-    inset: 0 !important; 
-    width: 100% !important; 
-    height: 100% !important;
-    background-color: #ffffff !important;
-    border-radius: 50% !important;
-    overflow: hidden !important; 
-}
+                btn.innerHTML = `
+                    <div class="flex flex-col items-center justify-center w-full h-full pointer-events-none relative z-10">
+                        <i class="fa-solid fa-syringe text-[24px] mb-1 text-purple-500"></i>
+                        <div class="flex flex-col items-center leading-none mt-0.5 w-full px-1">
+                            <span class="text-[10px] font-bold text-purple-600 uppercase tracking-tighter">Amio.</span>
+                            <span class="text-[11px] font-black text-purple-700 uppercase tracking-tight mt-0.5">${doseText}</span>
+                        </div>
+                    </div>
+                `;
+                btn.classList.remove('bg-white', 'border-purple-100', 'text-slate-500');
+                btn.classList.add('bg-purple-50', 'border-purple-300', 'text-purple-600');
+                
+                btn.dataset.smartMode = "amio";
+                btn.dataset.amioDose = doseText;
+            } else {
+                btn.innerHTML = `
+                    <div class="flex flex-col items-center justify-center w-full h-full pointer-events-none relative z-10">
+                        <i class="fa-solid fa-capsules text-[24px] mb-1 text-slate-400"></i>
+                        <div class="flex flex-col items-center leading-none mt-0.5 w-full px-1">
+                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Meds</span>
+                            <span class="text-[11px] font-black text-purple-700 uppercase tracking-tight mt-0.5">Menü</span>
+                        </div>
+                    </div>
+                `;
+                btn.classList.remove('bg-purple-50', 'border-purple-300', 'text-purple-600');
+                btn.classList.add('bg-white', 'border-purple-100', 'text-slate-500');
+                
+                btn.dataset.smartMode = "menu";
+            }
+        },
 
-body.dashboard-active #view-decision > button:last-child, 
-body.dashboard-active #view-joule > button:last-child, 
-body.dashboard-active #view-cpr-resume > button:last-child,
-body.dashboard-active #view-meds-menu > button:last-child, 
-body.dashboard-active #view-airway > button:last-child, 
-body.dashboard-active #view-zugang > button:last-child,
-body.dashboard-active #view-rosc-end > button:last-child, 
-body.dashboard-active #view-abbruch-reason > button:last-child {
-    position: absolute !important; 
-    bottom: 25px !important; 
-    left: 50% !important; 
-    transform: translateX(-50%) !important;
-    z-index: 50 !important;
-}
+        recalcMeds: function() {
+            const isPedi = window.CPR.AppState && window.CPR.AppState.isPediatric;
+            const kg = window.CPR.AppState ? window.CPR.AppState.patientWeight : 0;
 
-/* ==========================================
-   10. SONSTIGES & OVERRIDES
-   ========================================== */
-.pointer-events-none { pointer-events: none !important; }
-.pointer-events-auto { pointer-events: auto !important; }
-.transition-colors { transition-property: color, background-color, border-color, text-decoration-color, fill, stroke; transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); transition-duration: 300ms; }
+            const adrBtn = document.getElementById('btn-adrenalin');
+            const adrText = document.getElementById('adr-text-2');
+            if (adrBtn && adrText) {
+                if (isPedi && kg) {
+                    // NEU: Berechnung in Mikrogramm (10 µg pro kg Körpergewicht)
+                    const dose = Math.round(kg * 10) + ' µg';
+                    adrBtn.dataset.dose = dose;
+                    adrText.innerText = dose;
+                } else {
+                    adrBtn.dataset.dose = '1 mg';
+                    adrText.innerText = '1 mg';
+                }
+            }
+
+            const amioContainer = document.getElementById('amio-container');
+            if (amioContainer) {
+                if (isPedi && kg) {
+                    const dose = Math.round(kg * 5) + ' mg';
+                    amioContainer.innerHTML = '<button class="btn-amio-opt w-full bg-purple-50 border border-purple-200 text-purple-700 py-3 rounded-xl font-black text-xs uppercase shadow-sm active:scale-95" data-log="Amiodaron ' + dose + '">Amio ' + dose + '</button>';
+                } else {
+                    amioContainer.innerHTML = 
+                        '<button class="btn-amio-opt w-full bg-purple-50 border border-purple-200 text-purple-700 py-3 rounded-xl font-black text-[10px] uppercase shadow-sm active:scale-95" data-log="Amiodaron 300mg">Amio 300mg</button>' +
+                        '<button class="btn-amio-opt w-full bg-purple-50 border border-purple-200 text-purple-700 py-3 rounded-xl font-black text-[10px] uppercase shadow-sm active:scale-95" data-log="Amiodaron 150mg">Amio 150mg</button>';
+                }
+            }
+
+            const sonstContainer = document.getElementById('sonstige-container');
+            if (sonstContainer) {
+                sonstContainer.innerHTML = 
+                    '<button class="btn-sonstige-opt w-full bg-white border border-slate-200 text-slate-600 py-3 rounded-xl font-bold text-[10px] uppercase shadow-sm active:scale-95" data-log="Volumen bolus">Volumen</button>' +
+                    '<button class="btn-sonstige-opt w-full bg-white border border-slate-200 text-slate-600 py-3 rounded-xl font-bold text-[10px] uppercase shadow-sm active:scale-95" data-log="Puffersubstanz (Bikarbonat)">Bikarbonat</button>' +
+                    '<button class="btn-sonstige-opt w-full bg-white border border-slate-200 text-slate-600 py-3 rounded-xl font-bold text-[10px] uppercase shadow-sm active:scale-95" data-log="Calcium">Calcium</button>' +
+                    '<button class="btn-sonstige-opt w-full bg-white border border-slate-200 text-slate-600 py-3 rounded-xl font-bold text-[10px] uppercase shadow-sm active:scale-95" data-log="Magnesium">Magnesium</button>';
+            }
+
+            const jouleContainer = document.getElementById('joule-container');
+            if (jouleContainer) {
+                if (isPedi && kg) {
+                    const j4 = Math.round(kg * 4);
+                    const j8 = Math.round(kg * 8);
+                    jouleContainer.innerHTML = 
+                        '<div class="flex gap-3 w-full justify-center">' +
+                        '<button class="btn-joule flex-1 bg-yellow-50 border-2 border-yellow-300 text-yellow-700 py-5 rounded-[1.5rem] font-black text-2xl shadow-sm active:scale-95 transition-all" data-joule="' + j4 + ' J">' + j4 + ' J<br><span class="text-[11px] font-bold opacity-70">4 J/kg</span></button>' +
+                        '<button class="btn-joule flex-1 bg-yellow-50 border-2 border-yellow-300 text-yellow-700 py-5 rounded-[1.5rem] font-black text-2xl shadow-sm active:scale-95 transition-all" data-joule="' + j8 + ' J">' + j8 + ' J<br><span class="text-[11px] font-bold opacity-70">8 J/kg</span></button>' +
+                        '</div>';
+                } else {
+                    jouleContainer.innerHTML = 
+                        '<button class="btn-joule w-[70%] mx-auto bg-yellow-50 border-2 border-yellow-300 text-yellow-700 py-4 rounded-[1.5rem] font-black text-2xl shadow-sm active:scale-95 transition-all mb-3" data-joule="150 J">150 J</button>' +
+                        '<div class="flex gap-3 w-full justify-center">' +
+                        '<button class="btn-joule flex-1 bg-yellow-50 border-2 border-yellow-300 text-yellow-700 py-4 rounded-[1.5rem] font-black text-2xl shadow-sm active:scale-95 transition-all" data-joule="200 J">200 J</button>' +
+                        '<button class="btn-joule flex-1 bg-yellow-50 border-2 border-yellow-300 text-yellow-700 py-4 rounded-[1.5rem] font-black text-2xl shadow-sm active:scale-95 transition-all" data-joule="360 J">360 J</button>' +
+                        '</div>';
+                }
+            }
+
+            const awContainer = document.getElementById('airway-buttons-container');
+            const pediAwInfo = document.getElementById('pediatric-airway-info');
+
+            if (isPedi && kg) {
+                if (pediAwInfo) pediAwInfo.classList.remove('hidden');
+                let activeZone = null;
+                if (window.CPR.broselowData) {
+                    activeZone = window.CPR.broselowData.find(function(z) { return kg >= z.minKg && kg <= z.maxKg; });
+                    if (!activeZone) activeZone = window.CPR.broselowData[window.CPR.broselowData.length - 1];
+                    if (kg < 6 && kg >= 3) {
+                        if (kg <= 5) activeZone = window.CPR.broselowData.find(function(z) { return z.color === 'grau'; });
+                        else activeZone = window.CPR.broselowData.find(function(z) { return z.color === 'rosa'; });
+                    }
+                }
+                if (activeZone && activeZone.airway) {
+                    const elKg = document.getElementById('airway-info-kg'); if (elKg) elKg.innerText = kg + ' kg';
+                    const elTubus = document.getElementById('airway-info-tubus'); if (elTubus) elTubus.innerText = activeZone.airway.tubus;
+                    const elTiefe = document.getElementById('airway-info-tiefe'); if (elTiefe) elTiefe.innerText = activeZone.airway.tiefe;
+                    const elWendel = document.getElementById('airway-info-wendel'); if (elWendel) elWendel.innerText = activeZone.airway.wendel;
+                    const elGuedel = document.getElementById('airway-info-guedel'); if (elGuedel) elGuedel.innerText = activeZone.airway.guedel;
+                }
+            } else {
+                if (pediAwInfo) pediAwInfo.classList.add('hidden');
+            }
+
+            if (awContainer) {
+                awContainer.innerHTML = 
+                    '<button class="btn-airway-opt flex-1 bg-cyan-50 border border-cyan-200 text-cyan-700 py-3 rounded-xl font-black text-xs shadow-sm active:scale-95" data-short="ETI">ETI<br><span class="text-[8px] font-bold opacity-70">Intubation</span></button>' +
+                    '<button class="btn-airway-opt flex-1 bg-cyan-50 border border-cyan-200 text-cyan-700 py-3 rounded-xl font-black text-xs shadow-sm active:scale-95" data-short="i-gel">i-gel<br><span class="text-[8px] font-bold opacity-70">SGA</span></button>' +
+                    '<button class="btn-airway-opt flex-1 bg-cyan-50 border border-cyan-200 text-cyan-700 py-3 rounded-xl font-black text-xs shadow-sm active:scale-95" data-short="LAMA">LAMA<br><span class="text-[8px] font-bold opacity-70">Larynxmaske</span></button>' +
+                    '<button class="btn-airway-opt flex-1 bg-cyan-50 border border-cyan-200 text-cyan-700 py-3 rounded-xl font-black text-xs shadow-sm active:scale-95" data-short="LTS">LTS<br><span class="text-[8px] font-bold opacity-70">Larynxtubus</span></button>';
+            }
+
+            this.updateSmartMedsButton();
+        },
+
+        updateCircle: function(canvasId, pct, color) {
+            const canvas = document.getElementById(canvasId);
+            if (!canvas) return;
+            
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width;
+            const h = canvas.height;
+            const center = w / 2;
+            const r = center - 8; 
+
+            ctx.clearRect(0, 0, w, h);
+            
+            if (pct > 0) {
+                ctx.beginPath();
+                ctx.arc(center, center, r, 0, 2 * Math.PI * pct);
+                ctx.strokeStyle = color || '#E3000F';
+                ctx.lineWidth = canvasId === 'progress-circle' ? 10 : 6;
+                ctx.lineCap = 'round';
+                ctx.stroke();
+            }
+        }
+    };
+})();
