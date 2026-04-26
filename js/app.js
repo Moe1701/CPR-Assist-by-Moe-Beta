@@ -7,6 +7,7 @@
  * - BUGFIX (navHelper): Verhindert das Ausblenden der UI beim App-Resume aus dem Hintergrund.
  * - BUGFIX (Sonnenfinsternis): Hardcodierte DOM opacity-0 Klassen werden bei Dashboard-Init bereinigt.
  * - UX FIX (Space Reservation): Target-Displacement im Onboarding behoben. Button hüpft nicht mehr!
+ * - BULLETPROOF FIX: Top Stats werden über redundante DOM-Befehle garantiert eingeblendet.
  */
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -69,6 +70,17 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     remodelViewTimer();
     // =========================================================
+
+    // 🌟 HELPER: Garantiert die Sichtbarkeit der Top-Stats (Tailwind + natives DOM) 🌟
+    function showTopStats() {
+        const topStats = document.getElementById('top-stats-container');
+        if (topStats) {
+            topStats.classList.remove('hidden', 'opacity-0', 'pointer-events-none');
+            topStats.classList.add('opacity-100', 'pointer-events-auto');
+            topStats.style.opacity = '1';
+            topStats.style.pointerEvents = 'auto';
+        }
+    }
 
     // 🌟 ARCHITEKTUR-FIX: Steuert das globale Sichtbarkeits-Konzept der Satelliten
     function navHelper(newState, viewId, size) {
@@ -154,9 +166,8 @@ document.addEventListener('DOMContentLoaded', function() {
     window.addLogEntry = addLogEntry;
 
     function startMainTimer() {
-        const topStats = document.getElementById('top-stats-container');
-        // 🌟 SPACE RESERVATION FIX: Unsichtbarkeit aufheben statt 'hidden' zu toggeln
-        if (topStats) topStats.classList.remove('opacity-0', 'pointer-events-none');
+        // Stats absolut sicher einblenden
+        showTopStats();
         
         const startTimeEl = document.getElementById('start-time');
         if (startTimeEl && startTimeEl.innerText === '--:--') startTimeEl.innerText = "Start: " + new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
@@ -724,8 +735,7 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('cpr-interface')?.classList.add('hidden'); 
             document.getElementById('rosc-interface')?.classList.remove('hidden'); 
             
-            // 🌟 SPACE RESERVATION FIX: 
-            document.getElementById('top-stats-container')?.classList.remove('opacity-0', 'pointer-events-none'); 
+            showTopStats(); // 🌟 FIX: Garantiert die Einblendung der Top-Stats
             
             document.getElementById('stat-ccf')?.classList.add('hidden'); 
             document.getElementById('stat-rosc')?.classList.remove('hidden');
@@ -738,8 +748,7 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('rosc-interface')?.classList.add('hidden'); 
             document.getElementById('cpr-interface')?.classList.remove('hidden'); 
             
-            // 🌟 SPACE RESERVATION FIX: 
-            document.getElementById('top-stats-container')?.classList.remove('opacity-0', 'pointer-events-none'); 
+            showTopStats(); // 🌟 FIX: Garantiert die Einblendung der Top-Stats
             
             document.getElementById('stat-rosc')?.classList.add('hidden'); 
             document.getElementById('stat-ccf')?.classList.remove('hidden');
@@ -853,8 +862,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     document.getElementById('cpr-interface')?.classList.add('hidden'); 
                     document.getElementById('rosc-interface')?.classList.remove('hidden'); 
                     
-                    // 🌟 SPACE RESERVATION FIX: 
-                    document.getElementById('top-stats-container')?.classList.remove('opacity-0', 'pointer-events-none'); 
+                    showTopStats(); // 🌟 FIX: Garantiert die Einblendung der Top-Stats
                     
                     document.getElementById('stat-ccf')?.classList.add('hidden'); 
                     document.getElementById('stat-rosc')?.classList.remove('hidden');
@@ -862,8 +870,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (AppState.isRunning !== false) { startMainTimer(); startRoscTimer(); } 
                     requestWakeLock();
                 } else { 
-                    // 🌟 SPACE RESERVATION FIX: 
-                    document.getElementById('top-stats-container')?.classList.remove('opacity-0', 'pointer-events-none'); 
+                    showTopStats(); // 🌟 FIX: Garantiert die Einblendung der Top-Stats
                     
                     navHelper(null, 'view-timer', 'small'); 
                     if(AppState.isRunning === false) { document.getElementById('debriefing-modal')?.classList.replace('hidden', 'flex'); } 
@@ -871,8 +878,7 @@ document.addEventListener('DOMContentLoaded', function() {
             } else if (AppState.state !== 'IDLE' && AppState.state.indexOf('OB_') !== 0) {
                 document.body.classList.add('dashboard-active');
                 
-                // 🌟 SPACE RESERVATION FIX: 
-                document.getElementById('top-stats-container')?.classList.remove('opacity-0', 'pointer-events-none'); 
+                showTopStats(); // 🌟 FIX: Garantiert die Einblendung der Top-Stats
                 
                 document.getElementById('satellites')?.classList.remove('hidden');
                 ['btn-airway', 'btn-cpr'].forEach(id => { document.getElementById(id)?.classList.remove('opacity-0', 'pointer-events-none'); });
