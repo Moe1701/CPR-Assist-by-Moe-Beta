@@ -63,59 +63,16 @@ window.CPR.UI = (function() {
             if (hPanel) hPanel.classList.add('translate-y-full');
         },
 
+        // 🌟 DIE WAHRE LÖSUNG: CSS-Delegation statt JS-Timeouts 🌟
+        // Die Funktion updateOrbitGeometry (die Zeitbombe) wurde restlos gelöscht.
+        // Das Layout wird nun fehlerfrei von Abschnitt 6 & 9 deiner style.css gesteuert!
         setCenterSize: function(size) {
-            this.updateOrbitGeometry(size);
-        },
-
-        updateOrbitGeometry: function(size) {
-            const mainBtn = document.getElementById('main-btn-area');
-            const sats = document.getElementById('satellites');
-            const wrapper = document.getElementById('orbit-wrapper');
-            const btnAirway = document.getElementById('btn-airway');
-            const btnCpr = document.getElementById('btn-cpr');
-            
-            if (!mainBtn) return;
-
             if (size === 'small') {
-                mainBtn.style.width = '260px';
-                mainBtn.style.height = '260px';
-                
-                if (wrapper) {
-                    wrapper.classList.remove('mb-0', 'mt-4');
-                    wrapper.classList.add('mb-[140px]', 'mt-10');
-                }
-
-                if (btnAirway) btnAirway.classList.remove('opacity-0', 'pointer-events-none');
-                if (btnCpr) btnCpr.classList.remove('opacity-0', 'pointer-events-none');
-
-                if(sats) {
-                    sats.classList.remove('hidden');
-                    setTimeout(function() {
-                        const btns = sats.querySelectorAll('.satellite-btn');
-                        btns.forEach(function(b) {
-                            b.classList.remove('opacity-0', 'pointer-events-none');
-                        });
-                    }, 50);
-                }
-            } else {
-                mainBtn.style.width = '330px';
-                mainBtn.style.height = '330px';
-                
-                if (wrapper) {
-                    wrapper.classList.remove('mb-[140px]', 'mt-10');
-                    wrapper.classList.add('mb-0', 'mt-4');
-                }
-
-                if (btnAirway) btnAirway.classList.add('opacity-0', 'pointer-events-none');
-                if (btnCpr) btnCpr.classList.add('opacity-0', 'pointer-events-none');
-
-                if(sats) {
-                    const btns = sats.querySelectorAll('.satellite-btn');
-                    btns.forEach(function(b) {
-                        b.classList.add('opacity-0', 'pointer-events-none');
-                    });
-                    setTimeout(function() { sats.classList.add('hidden'); }, 300);
-                }
+                document.body.classList.add('cpr-mode-small');
+                document.body.classList.remove('center-menu-open');
+            } else if (size === 'large') {
+                document.body.classList.remove('cpr-mode-small');
+                document.body.classList.add('center-menu-open');
             }
         },
 
@@ -164,7 +121,6 @@ window.CPR.UI = (function() {
             }
         },
 
-        // 🌟 CHIRURGISCHER SCHNITT: Native DOM-Steuerung für 100% Sichtbarkeit 🌟
         updateAdrenalinBadge: function() {
             const badge = document.getElementById('adr-count-badge');
             if (!badge) return;
@@ -172,7 +128,7 @@ window.CPR.UI = (function() {
             const count = window.CPR.AppState ? (window.CPR.AppState.adrCount || 0) : 0;
             
             if (count > 0) {
-                badge.style.display = 'flex'; // Unangreifbar gegen CSS
+                badge.style.display = 'flex';
                 badge.innerText = count; 
             } else {
                 badge.style.display = 'none';
@@ -238,7 +194,6 @@ window.CPR.UI = (function() {
             const adrText = document.getElementById('adr-text-2');
             if (adrBtn && adrText) {
                 if (isPedi && kg) {
-                    // NEU: Berechnung in Mikrogramm (10 µg pro kg Körpergewicht)
                     const dose = Math.round(kg * 10) + ' µg';
                     adrBtn.dataset.dose = dose;
                     adrText.innerText = dose;
@@ -252,11 +207,11 @@ window.CPR.UI = (function() {
             if (amioContainer) {
                 if (isPedi && kg) {
                     const dose = Math.round(kg * 5) + ' mg';
-                    amioContainer.innerHTML = '<button class="btn-amio-opt w-full bg-purple-50 border border-purple-200 text-purple-700 py-3 rounded-xl font-black text-xs uppercase shadow-sm active:scale-95" data-log="Amiodaron ' + dose + '">Amio ' + dose + '</button>';
+                    amioContainer.innerHTML = '<button class="btn-amio-opt w-full bg-purple-50 border-purple-200 text-purple-700 py-3 rounded-xl font-black text-xs uppercase shadow-sm active:scale-95" data-log="Amiodaron ' + dose + '">Amio ' + dose + '</button>';
                 } else {
                     amioContainer.innerHTML = 
-                        '<button class="btn-amio-opt w-full bg-purple-50 border border-purple-200 text-purple-700 py-3 rounded-xl font-black text-[10px] uppercase shadow-sm active:scale-95" data-log="Amiodaron 300mg">Amio 300mg</button>' +
-                        '<button class="btn-amio-opt w-full bg-purple-50 border border-purple-200 text-purple-700 py-3 rounded-xl font-black text-[10px] uppercase shadow-sm active:scale-95" data-log="Amiodaron 150mg">Amio 150mg</button>';
+                        '<button class="btn-amio-opt w-full bg-purple-50 border-purple-200 text-purple-700 py-3 rounded-xl font-black text-[10px] uppercase shadow-sm active:scale-95" data-log="Amiodaron 300mg">Amio 300mg</button>' +
+                        '<button class="btn-amio-opt w-full bg-purple-50 border-purple-200 text-purple-700 py-3 rounded-xl font-black text-[10px] uppercase shadow-sm active:scale-95" data-log="Amiodaron 150mg">Amio 150mg</button>';
                 }
             }
 
