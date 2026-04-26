@@ -5,6 +5,7 @@
  * - LOGIC FIX: Timer schaltet nicht mehr automatisch um, sondern eskaliert!
  * - ARCHITECTURE: Satelliten werden beim Öffnen von Menüs global im CSS ausgeblendet!
  * - BUGFIX (navHelper): Verhindert das Ausblenden der UI beim App-Resume aus dem Hintergrund.
+ * - BUGFIX (Sonnenfinsternis): Satelliten formieren sich nach dem Resume korrekt um den Timer.
  */
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -868,6 +869,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 updateCprUI(); requestWakeLock();
                 if (AppState.adrSeconds > 0 && CPR.AdrTimer && typeof CPR.AdrTimer.start === 'function') CPR.AdrTimer.start(true); 
+                
+                // 🌟 FIX: Sonnenfinsternis-Bug beheben! Satelliten nach Resume neu anordnen 🌟
+                if (window.CPR.MedsButton && typeof window.CPR.MedsButton.init === 'function') {
+                    window.CPR.MedsButton.init();
+                }
             }
 
             // Sicherstellen, dass das Protokoll nach dem Laden der Session sofort gerendert wird
