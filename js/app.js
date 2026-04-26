@@ -4,8 +4,7 @@
  * - UI UPGRADE: Millimetergenaue Y-Positionen verhindern jedes Herausrutschen!
  * - LOGIC FIX: Timer schaltet nicht mehr automatisch um, sondern eskaliert!
  * - ARCHITECTURE: Satelliten werden beim Öffnen von Menüs global im CSS ausgeblendet!
- * - BUGFIX (navHelper 1): Verhindert das Ausblenden der UI beim App-Resume.
- * - BUGFIX (navHelper 2): Zwingt blockierende CSS-Klassen ('center-menu-open') in die Knie, um versteckte Satelliten zu befreien.
+ * - BUGFIX (navHelper): Verhindert das Ausblenden der UI beim App-Resume aus dem Hintergrund.
  * - BUGFIX (Sonnenfinsternis): 500ms Puffer nach Resume verhindert CSS Layout Race Condition.
  */
 
@@ -74,24 +73,22 @@ document.addEventListener('DOMContentLoaded', function() {
     function navHelper(newState, viewId, size) {
         if (newState) { AppState.previousState = AppState.state; AppState.state = newState; }
         
-        // CHIRURGISCHER BUGFIX 1: Nur umschalten, wenn eine viewId übergeben wurde
+        // CHIRURGISCHER BUGFIX: Nur umschalten, wenn auch wirklich eine viewId übergeben wurde!
         if (viewId && UI && typeof UI.switchView === 'function') { 
             UI.switchView(viewId); 
         }
         
-        // CHIRURGISCHER BUGFIX 2: SAFETY OVERRIDE!
-        // Wir verlassen uns nicht mehr blind auf ui.js. Wir zwingen den Body mit purem JS in den richtigen Modus!
-        if (size === 'small') {
-            document.body.classList.add('cpr-mode-small');
-            document.body.classList.remove('center-menu-open');
-        } else if (size === 'large') {
-            document.body.classList.remove('cpr-mode-small');
-            document.body.classList.add('center-menu-open');
-        }
-
-        // Danach die UI.js für Animationen aufrufen (falls vorhanden)
+        // Entweder über UI.js oder als direkter Fallback:
         if (UI && typeof UI.setCenterSize === 'function' && size) { 
             UI.setCenterSize(size); 
+        } else if (size) {
+            if (size === 'small') {
+                document.body.classList.add('cpr-mode-small');
+                document.body.classList.remove('center-menu-open');
+            } else if (size === 'large') {
+                document.body.classList.remove('cpr-mode-small');
+                document.body.classList.add('center-menu-open');
+            }
         }
     }
     window.CPR.navHelper = navHelper;
