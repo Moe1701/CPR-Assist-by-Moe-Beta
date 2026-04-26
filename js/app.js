@@ -8,6 +8,7 @@
  * - BUGFIX (Sonnenfinsternis): Hardcodierte DOM opacity-0 Klassen werden bei Dashboard-Init bereinigt.
  * - UX FIX (Space Reservation): Target-Displacement im Onboarding behoben. Button hüpft nicht mehr!
  * - BULLETPROOF FIX: Top Stats werden über redundante DOM-Befehle garantiert eingeblendet.
+ * - TIME TRAVEL FIX: CPR und CCF-Berechnung laufen während App-Backgrounding lückenlos weiter.
  */
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -822,16 +823,27 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!AppState.anamneseData) AppState.anamneseData = { beobachtet: null, laienrea: null, brustschmerz: null, therapie: null, sampler: { s: '', a: '', m: '', p: '', l: '', e: '', r: '', 'plus-s': '' } };
             if (!AppState.protocolData) AppState.protocolData = [];
             
+            // 🌟 TIME TRAVEL FIX: Lückenloses Aufrechnen der Sekunden 🌟
             if (AppState.isRunning !== false) { 
                 AppState.totalSeconds += passedSeconds; 
-                AppState.arrestSeconds += passedSeconds; 
+                
+                if (AppState.state !== 'ROSC_ACTIVE') {
+                    AppState.arrestSeconds += passedSeconds; 
+                    
+                    // CCF-Fix: Wenn CPR lief, füllen wir die Lücke nahtlos auf!
+                    if (session.isCompressing) {
+                        AppState.compressingSeconds = (AppState.compressingSeconds || 0) + passedSeconds;
+                    } else if (session.isVentilationPhase) {
+                        AppState.ventilationSeconds = (AppState.ventilationSeconds || 0) + passedSeconds;
+                    }
+                }
                 
                 let currentCprSec = Number(AppState.cycleSeconds) || 0;
                 AppState.cycleSeconds = Math.min(120, currentCprSec + passedSeconds); 
                 let currentAdrSec = Number(AppState.adrSeconds) || 0;
                 AppState.adrSeconds = Math.min(240, currentAdrSec + passedSeconds); 
             }
-            AppState.isCompressing = false; 
+            // 🌟 Der alte, harte Stopp (AppState.isCompressing = false) wurde HIER eliminiert!
             
             if (session.isSoundActive !== undefined) { 
                 const ion = document.getElementById('icon-sound-on'); if (ion) ion.classList.toggle('hidden', !AppState.isSoundActive); 
