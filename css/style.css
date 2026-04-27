@@ -18,22 +18,22 @@ body { overscroll-behavior-y: none; background-color: #f8fafc; }
 :root {
     /* MOBILE FIRST (Handys) - SAFE FIBONACCI (Anti-Scroll) */
     --sat-size: 76px;
-    --orbit-radius: 174px;   /* 115px (Zentrum) + 21px (Gap) + 38px (Sat) */
+    --orbit-radius: 160px;   /* 112px (Zentrum) + 10px (Gap) + 38px (Sat) */
     --main-size: 85px;
     --main-x: 125px;         /* Mehr zur Seite geschoben... */
     --main-y: 255px;         /* ...damit Y sicher oben bleibt und nichts abschneidet! */
-    --center-btn-size: 230px;
+    --center-btn-size: 224px;
 }
 
 @media (min-width: 768px) {
     :root {
         /* iPAD & TABLET - SAFE FIBONACCI */
         --sat-size: 90px;
-        --orbit-radius: 204px;
+        --orbit-radius: 177px;   /* 122px (Zentrum) + 10px (Gap) + 45px (Sat) */
         --main-size: 100px;
         --main-x: 140px;
         --main-y: 290px;
-        --center-btn-size: 250px;
+        --center-btn-size: 244px;
     }
 }
 
@@ -141,7 +141,7 @@ body.center-menu-open #main-btn-area {
     body.center-menu-open #main-btn-area { width: 400px !important; height: 400px !important; }
 }
 
-/* KREIS KLEIN: CPR-Timer läuft (230px) */
+/* KREIS KLEIN: CPR-Timer läuft */
 body.dashboard-active.cpr-mode-small #orbit-wrapper > div.relative,
 body.dashboard-active.cpr-mode-small #main-btn-area {
     width: var(--center-btn-size) !important;
