@@ -113,7 +113,8 @@ body.debug-mode #orbit-wrapper > div::before { content: ''; position: absolute; 
 
 #orbit-wrapper > div.relative {
     transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1) !important;
-    transform: translateY(-65px) !important; 
+    /* -20px tiefer gesetzt für mehr Abstand zu den Top-Stats */
+    transform: translateY(-45px) !important; 
 }
 
 /* 🌟 DER MASTER-KREIS 🌟 */
@@ -149,7 +150,8 @@ body.dashboard-active.cpr-mode-small #main-btn-area {
     z-index: 55 !important;
 }
 body.dashboard-active.cpr-mode-small #orbit-wrapper > div.relative {
-    transform: translateY(-105px) !important; 
+    /* -20px tiefer gesetzt für mehr Abstand zu den Top-Stats */
+    transform: translateY(-85px) !important; 
 }
 
 /* ==========================================
@@ -192,7 +194,6 @@ body.dashboard-active.cpr-mode-small #orbit-wrapper > div.relative {
     border-radius: 50% !important;
     overflow: hidden !important; 
 }
-/* Die '!important' Regeln für die Buttons wurden hier restlos gelöscht! */
 
 /* ==========================================
    9. ARCHITEKTUR-FIX: SATELLITEN AUSBLENDEN
