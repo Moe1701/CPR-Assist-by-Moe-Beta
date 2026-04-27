@@ -1,8 +1,9 @@
 /**
- * CPR Assist - Log Timeline Modul (V55 - Data Extraction & Live Marker Fix)
- * - BUGFIX: Live-Marker stoppt nicht mehr am Ende eines 2-Min-Blocks, sondern spawnt nahtlos im nächsten.
- * - BUGFIX: CPR Pausen Detektor ist nun viel robuster (erkennt auch 'Analyse' etc.).
- * - BUGFIX: ROSC-Zeit und Abbruchgrund werden garantiert abgedruckt.
+ * CPR Assist - Log Timeline Modul (V56 - EKG-Style & Naked Icons)
+ * - FEATURE: Naked-Icons (ohne weiße Bubbles) für 50% weniger Platzbedarf.
+ * - FEATURE: Kompakte Blöcke (110px Höhe, 8px Margin) für 4 Zyklen pro Screen.
+ * - FEATURE: Schock-Energie als fetter Text statt Kasten.
+ * - FEATURE: Feinere Verbindungslinien und inteligente Höhenstaffelung.
  */
 
 window.CPR = window.CPR || {};
@@ -18,13 +19,13 @@ window.CPR.LogTimeline = (function() {
         
         if (t.includes('schock') && !t.includes('schockbar')) {
             const match = t.match(/(\d+)\s*[jJ]/);
-            if (match) return { icon: match[1] + 'J', isText: true, type: 'shock', color: 'text-white', bg: 'bg-[#E3000F]' };
+            if (match) return { icon: match[1] + 'J', isText: true, isJoule: true, type: 'shock', color: 'text-white', bg: 'bg-[#E3000F]' };
             return { icon: '⚡', type: 'shock', color: 'text-white', bg: 'bg-[#E3000F]' };
         }
         
         if (t.includes('nicht schockbar')) return { 
             icon: '🚫⚡', 
-            htmlIcon: '<div class="relative">⚡<div class="absolute top-1/2 left-[-2px] right-[-2px] h-[2px] bg-red-500 rotate-45 -translate-y-1/2 shadow-sm"></div></div>', 
+            htmlIcon: '<div class="relative inline-block">⚡<div class="absolute top-1/2 left-[-2px] right-[-2px] h-[1.5px] bg-red-500 rotate-45 -translate-y-1/2"></div></div>', 
             type: 'analysis-no', color: 'text-slate-400', bg: 'bg-slate-200' 
         };
         if (t.includes('schockbar')) return { icon: '⚡', type: 'analysis-yes', color: 'text-amber-500', bg: 'bg-amber-50' };
@@ -46,7 +47,7 @@ window.CPR.LogTimeline = (function() {
         return { icon: '🔹', type: 'default', color: 'text-slate-400', bg: 'bg-slate-100' };
     }
 
-    // --- PAUSEN EXTRAKTOR (Robustes Matching) ---
+    // --- PAUSEN EXTRAKTOR ---
     function extractPauses(data, currentAppSec) {
         let pauses = [];
         let currentStart = null;
@@ -93,7 +94,6 @@ window.CPR.LogTimeline = (function() {
         const hitsLogs = data.filter(d => d.action.includes('HITS:'));
         const hitsHtml = hitsLogs.map(h => `<li class="mb-1">${h.action.replace('HITS: ', '')}</li>`).join('');
 
-        // 🌟 END-STATUS & ROSC-ZEIT (Sichere Extraktion) 🌟
         let endStatus = 'Laufende CPR';
         let timeToRosc = null;
         let abbruchReason = "";
@@ -115,7 +115,6 @@ window.CPR.LogTimeline = (function() {
             }
         });
 
-        // Fallbacks, falls String zerschnitten war
         if (endStatus === 'ROSC' && timeToRosc === null) timeToRosc = totalSec;
         if (endStatus === 'Abbruch' && !abbruchReason) abbruchReason = "Teamentscheidung / Unbekannt";
 
@@ -140,8 +139,6 @@ window.CPR.LogTimeline = (function() {
         
         return `
             <div class="flex-1 overflow-y-auto p-3 flex flex-col gap-3 pb-24 custom-scrollbar bg-slate-50">
-                
-                <!-- [S] SITUATION -->
                 <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                     <div class="bg-blue-50 px-3 py-2 border-b border-blue-100 flex items-center gap-2">
                         <i class="fa-solid fa-user-injured text-blue-600"></i>
@@ -168,7 +165,6 @@ window.CPR.LogTimeline = (function() {
                     </div>
                 </div>
 
-                <!-- [B] BACKGROUND -->
                 <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                     <div class="bg-indigo-50 px-3 py-2 border-b border-indigo-100 flex items-center gap-2">
                         <i class="fa-solid fa-clipboard-list text-indigo-600"></i>
@@ -198,7 +194,6 @@ window.CPR.LogTimeline = (function() {
                     </div>
                 </div>
 
-                <!-- [A] ASSESSMENT -->
                 <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                     <div class="bg-amber-50 px-3 py-2 border-b border-amber-100 flex items-center gap-2">
                         <i class="fa-solid fa-stethoscope text-amber-600"></i>
@@ -218,7 +213,6 @@ window.CPR.LogTimeline = (function() {
                     </div>
                 </div>
 
-                <!-- [R] RESPONSE -->
                 <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                     <div class="bg-red-50 px-3 py-2 border-b border-red-100 flex items-center gap-2">
                         <i class="fa-solid fa-kit-medical text-[#E3000F]"></i>
@@ -290,7 +284,7 @@ window.CPR.LogTimeline = (function() {
         return html;
     }
 
-    // --- 5. DOM RENDERING: THE PERFECT GRID ---
+    // --- 5. DOM RENDERING: EKG-STYLE TIMELINE ---
     function renderTimeline() {
         const { totalSec, data } = extractSbarFacts();
         let currentAppSec = totalSec;
@@ -304,16 +298,16 @@ window.CPR.LogTimeline = (function() {
                         <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm text-emerald-500">❤️</span><span class="text-[7.5px] font-bold text-slate-600 uppercase tracking-widest">ROSC</span></div>
                         <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm text-amber-500">⚡</span><span class="text-[7.5px] font-bold text-slate-600 uppercase tracking-widest">Schockbar</span></div>
                         <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm relative text-slate-400">⚡<div class="absolute top-1/2 left-[-2px] right-[-2px] h-[1.5px] bg-red-500 rotate-45 -translate-y-1/2"></div></span><span class="text-[7.5px] font-bold text-slate-600 uppercase tracking-widest">Kein Schock</span></div>
-                        <div class="flex items-center gap-1"><div class="w-[14px] h-[14px] rounded-full bg-[#E3000F] text-white flex items-center justify-center text-[5px] font-black">J</div><span class="text-[7.5px] font-bold text-slate-600 uppercase tracking-widest">Schock</span></div>
+                        <div class="flex items-center gap-1"><span class="text-[10px] font-black text-[#E3000F] drop-shadow-sm">150J</span><span class="text-[7.5px] font-bold text-slate-600 uppercase tracking-widest">Schock</span></div>
                         <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm">💉</span><span class="text-[7.5px] font-bold text-slate-600 uppercase tracking-widest">Adr.</span></div>
                         <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm">💊</span><span class="text-[7.5px] font-bold text-slate-600 uppercase tracking-widest">Amio.</span></div>
                         <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm">🫁</span><span class="text-[7.5px] font-bold text-slate-600 uppercase tracking-widest">Aw.</span></div>
                         <div class="flex items-center gap-1"><span class="text-[13px] drop-shadow-sm">🩸</span><span class="text-[7.5px] font-bold text-slate-600 uppercase tracking-widest">Zug.</span></div>
-                        <div class="flex items-center gap-1"><div class="w-4 h-1.5 bg-red-500 rounded"></div><span class="text-[7.5px] font-bold text-slate-600 uppercase tracking-widest">Pause</span></div>
+                        <div class="flex items-center gap-1"><div class="w-4 h-1 bg-red-500 rounded"></div><span class="text-[7.5px] font-bold text-slate-600 uppercase tracking-widest">Pause</span></div>
                     </div>
                 </div>
             </div>
-            <div class="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar bg-slate-50 relative pb-24 pt-4 px-3">
+            <div class="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar bg-slate-50 relative pb-24 pt-3 px-3">
         `;
 
         if (data.length === 0) {
@@ -331,7 +325,8 @@ window.CPR.LogTimeline = (function() {
         const cycleDuration = 120;
         let totalCycles = Math.max(4, Math.ceil(currentAppSec / cycleDuration));
         let currentStartSec = 0;
-        const yOffsets = [12, -12, 28, -28, 44, -44];
+        // Engere Y-Offsets, da keine Bubbles mehr im Weg sind
+        const yOffsets = [12, -12, 26, -26, 40, -40];
 
         for (let i = 0; i < totalCycles; i++) {
             const cycleEndSec = currentStartSec + cycleDuration;
@@ -339,13 +334,13 @@ window.CPR.LogTimeline = (function() {
             const isActiveBlock = (currentAppSec >= currentStartSec && currentAppSec <= cycleEndSec);
 
             html += `
-                <div class="relative w-full h-[140px] mb-8 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden shrink-0">
-                    <div class="absolute top-1/2 left-1 -translate-y-1/2 text-[9px] font-black text-slate-400 bg-white px-1 z-10">${window.CPR.Utils.formatTime(currentStartSec)}</div>
-                    <div class="absolute top-1/2 right-1 -translate-y-1/2 text-[9px] font-black text-slate-400 bg-white px-1 z-10">${window.CPR.Utils.formatTime(cycleEndSec)}</div>
+                <div class="relative w-full h-[110px] mb-2 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden shrink-0">
+                    <div class="absolute top-1/2 left-1 -translate-y-1/2 text-[8px] font-black text-slate-400 bg-white/80 px-1 z-10">${window.CPR.Utils.formatTime(currentStartSec)}</div>
+                    <div class="absolute top-1/2 right-1 -translate-y-1/2 text-[8px] font-black text-slate-400 bg-white/80 px-1 z-10">${window.CPR.Utils.formatTime(cycleEndSec)}</div>
                     
-                    <div class="absolute inset-y-0 left-8 right-8 pointer-events-none">
+                    <div class="absolute inset-y-0 left-7 right-7 pointer-events-none">
                         <!-- Mittellinie (Track) -->
-                        <div class="absolute top-1/2 left-0 right-0 h-1 bg-slate-100 rounded-full -translate-y-1/2 shadow-inner z-0"></div>
+                        <div class="absolute top-1/2 left-0 right-0 h-[2px] bg-slate-100 rounded-full -translate-y-1/2 shadow-inner z-0"></div>
             `;
 
             // 15s LINEAL
@@ -353,12 +348,12 @@ window.CPR.LogTimeline = (function() {
                 const tickSec = currentStartSec + t;
                 const pct = (t / 120) * 100;
                 const isHalf = t === 60;
-                const tickH = isHalf ? 'h-4' : 'h-2';
+                const tickH = isHalf ? 'h-3' : 'h-1.5';
                 html += `<div class="absolute top-1/2 w-px ${tickH} bg-slate-300 -translate-y-1/2 -translate-x-1/2 z-10" style="left: ${pct}%;"></div>`;
-                html += `<div class="absolute top-1/2 mt-3.5 text-[6.5px] font-black text-slate-400 -translate-y-1/2 -translate-x-1/2 z-10" style="left: ${pct}%;">${window.CPR.Utils.formatTime(tickSec)}</div>`;
+                html += `<div class="absolute top-1/2 mt-3 text-[6px] font-black text-slate-400 -translate-y-1/2 -translate-x-1/2 z-10" style="left: ${pct}%;">${window.CPR.Utils.formatTime(tickSec)}</div>`;
             }
 
-            // CPR PAUSEN (Z-Index über Track, aber unter Icons)
+            // CPR PAUSEN
             pauses.forEach(p => {
                 const pStart = Math.max(p.start, currentStartSec);
                 const pEnd = Math.min(p.end, cycleEndSec);
@@ -375,7 +370,7 @@ window.CPR.LogTimeline = (function() {
                 }
             });
 
-            // LIVE MARKER (Stoppt jetzt NICHT mehr!)
+            // LIVE MARKER
             if (isActiveBlock) {
                 const markerPct = ((currentAppSec - currentStartSec) / cycleDuration) * 100;
                 html += `
@@ -388,24 +383,34 @@ window.CPR.LogTimeline = (function() {
                 `;
             }
 
-            // ICONS
+            // NAKED ICONS RENDER LOOP
             cycleEvents.forEach((ev, idx) => {
                 const secInCycle = ev.secondsFromStart - currentStartSec;
                 const pct = (secInCycle / cycleDuration) * 100;
                 const yOff = yOffsets[idx % yOffsets.length];
                 const isTop = yOff < 0; 
                 const lineH = Math.abs(yOff);
-                const linePosClass = isTop ? 'bottom-1/2 mb-[2px]' : 'top-1/2 mt-[2px]';
+                const linePosClass = isTop ? 'bottom-1/2 mb-[1px]' : 'top-1/2 mt-[1px]';
 
                 const iconContent = ev.iconData.htmlIcon || ev.iconData.icon;
-                const textClass = ev.iconData.isText ? 'text-[7px] font-black tracking-tighter' : 'text-[11px]';
+                
+                let renderIcon = '';
+                if (ev.iconData.isJoule) {
+                    renderIcon = `<span class="text-[10px] font-black text-[#E3000F] drop-shadow-[0_0_2px_rgba(255,255,255,1)] tracking-tighter">${iconContent}</span>`;
+                } else if (ev.iconData.isText) {
+                    renderIcon = `<span class="text-[9px] font-black text-slate-700 drop-shadow-[0_0_2px_rgba(255,255,255,1)]">${iconContent}</span>`;
+                } else {
+                    renderIcon = `<span class="text-[13px] drop-shadow-sm leading-none block">${iconContent}</span>`;
+                }
+
+                const anchorTransform = isTop ? '-translate-y-full pb-[1px]' : 'pt-[1px]';
 
                 html += `
-                        <div class="absolute w-px bg-slate-300 -translate-x-1/2 ${linePosClass} z-20" style="left: ${pct}%; height: ${lineH}px;"></div>
-                        <div class="absolute -translate-x-1/2 flex flex-col items-center z-20" style="left: ${pct}%; top: calc(50% + ${yOff}px - 14px); z-index: ${20 + idx};">
-                            <div class="w-7 h-7 rounded-full ${ev.iconData.bg} border-2 border-white shadow-md flex items-center justify-center ${textClass} ${ev.iconData.color}">
-                                ${iconContent}
-                            </div>
+                        <div class="absolute top-1/2 w-1 h-1 rounded-full bg-slate-400 -translate-x-1/2 -translate-y-1/2 z-[11]" style="left: ${pct}%;"></div>
+                        <div class="absolute w-px bg-slate-300 -translate-x-1/2 ${linePosClass} z-10" style="left: ${pct}%; height: ${lineH}px;"></div>
+                        <div class="absolute -translate-x-1/2 flex flex-col items-center justify-center z-20 ${anchorTransform}" 
+                             style="left: ${pct}%; top: calc(50% ${isTop ? '-' : '+'} ${lineH}px); z-index: ${20 + idx};">
+                            ${renderIcon}
                         </div>
                 `;
             });
@@ -418,7 +423,7 @@ window.CPR.LogTimeline = (function() {
         return html;
     }
 
-    // --- LIVE MARKER UPDATER (Nahtloser Block-Wechsel) ---
+    // --- LIVE MARKER UPDATER ---
     function updateLiveMarker() {
         if (currentView !== 'timeline') return;
         const state = window.CPR.AppState;
@@ -429,7 +434,6 @@ window.CPR.LogTimeline = (function() {
         const currentBlock = Math.floor(currentAppSec / 120);
         if (window._lastRenderedBlock === undefined) window._lastRenderedBlock = currentBlock;
         
-        // Zwingt das Grid zum Neu-Rendern, wenn wir die 120s Grenze überschreiten (spawnt den Marker in der neuen Box)
         if (currentBlock !== window._lastRenderedBlock) {
             window._lastRenderedBlock = currentBlock;
             renderCurrentView();
