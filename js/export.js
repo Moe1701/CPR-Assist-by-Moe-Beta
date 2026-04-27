@@ -1,41 +1,43 @@
 /**
- * CPR Assist - Export Modul (V58 - SBAR, ROSC-Dauer & Startzeit Fix)
- * - FEATURE: Einsatzbeginn wird explizit mit Uhrzeit dokumentiert.
- * - FEATURE: Zeit bis zum ROSC wird automatisch berechnet und angezeigt.
- * - BUGFIX: SBAR-Struktur für das Debriefing & PDF-Export nahtlos integriert.
+ * CPR Assist - Export Modul (V59 - Medical Grade Data Fix & PDF Safe-Text)
+ * - BUGFIX: Greift nun korrekt auf die neuen AppState.protocolData Objekte zu!
+ * - BUGFIX: Split-Logik für Timestamp/Action komplett neu geschrieben (wasserdicht).
+ * - UX/PDF FIX: Emojis durch saubere Text-Badges (z.B. [ADR], [SCHOCK]) ersetzt, 
+ * da Standard jsPDF (Helvetica) keine UTF-8 Emojis unterstützt (verhindert unsichtbare Zeichen).
  */
 
 window.CPR = window.CPR || {};
 
 window.CPR.Export = (function() {
 
-    // --- 1. ICON LOGIK (Für Canvas / PDF) ---
+    // --- 1. ICON LOGIK (Für PDF Safe-Text Badge) ---
     function getIconData(txt) {
-        if (!txt) return null;
+        if (!txt) return { icon: '>>>' };
         const t = txt.toLowerCase();
         
         if (t.includes('schock') && !t.includes('schockbar')) {
             const match = t.match(/(\d+)\s*[jJ]/);
-            if (match) return { icon: match[1] + 'J', isText: true, type: 'shock' };
-            return { icon: '⚡', type: 'shock' };
+            if (match) return { icon: match[1] + ' J' };
+            return { icon: 'SCHOCK' };
         }
-        if (t.includes('nicht schockbar')) return { icon: '🚫⚡', type: 'analysis-no' };
-        if (t.includes('schockbar')) return { icon: '⚡', type: 'analysis-yes' };
+        if (t.includes('nicht schockbar')) return { icon: 'KEIN SCHOCK' };
+        if (t.includes('schockbar')) return { icon: 'SCHOCKBAR' };
 
-        if (t.includes('hits') || t.includes('sampler') || t.includes('anamnese')) return { icon: '📋', type: 'info' };
-        if (t.includes('adrenalin')) return { icon: '💉', type: 'adr' };
-        if (t.includes('amiodaron') || t.includes('amio')) return { icon: '💊', type: 'amio' };
-        if (t.includes('atemweg:') || t.includes('beatmungen durchge')) return { icon: '🫁', type: 'airway' };
-        if (t.includes('zugang:')) return { icon: '🩸', type: 'zugang' };
-        if (t.includes('rosc')) return { icon: '❤️', type: 'rosc' };
-        if (t.includes('abbruch:')) return { icon: '🛑', type: 'abbruch' };
+        if (t.includes('hits') || t.includes('sampler') || t.includes('anamnese')) return { icon: 'INFO' };
+        if (t.includes('adrenalin')) return { icon: 'ADR' };
+        if (t.includes('amiodaron') || t.includes('amio')) return { icon: 'AMIO' };
+        if (t.includes('atemweg:') || t.includes('beatmungen durchge')) return { icon: 'AW' };
+        if (t.includes('zugang:')) return { icon: 'ZUGANG' };
+        if (t.includes('rosc')) return { icon: 'ROSC' };
+        if (t.includes('abbruch:')) return { icon: 'ENDE' };
+        if (t.includes('pause')) return { icon: 'PAUSE' };
         
-        return null;
+        return { icon: '---' };
     }
 
     // --- 2. SBAR TEXT FORMATIERUNG (Für TXT & PDF Summary) ---
-    function buildSummaryLog(logs) {
-        if (!logs || logs.length === 0) return "Keine Daten verfügbar.";
+    function buildSummaryLog(entries) {
+        if (!entries || entries.length === 0) return "Keine Daten verfügbar.";
 
         let startTimeStr = "--:--";
         let firstEventTime = null;
@@ -49,12 +51,10 @@ window.CPR.Export = (function() {
         let zugang = document.getElementById('zugang-label')?.innerText || "Nicht dokumentiert";
         if (zugang === 'Zugang') zugang = "Nicht dokumentiert";
 
-        // Logbuch durchgehen und Zeiten extrahieren
-        logs.forEach(log => {
-            const parts = log.split(': ');
-            if (parts.length < 4) return;
-            const timestamp = parts[0] + ":" + parts[1] + ":" + parts[2];
-            const action = parts.slice(3).join(': ');
+        // Neue Objekt-Logik: entries ist ein Array aus { time: "14:30:00", action: "Bla" }
+        entries.forEach(entry => {
+            const timestamp = entry.time;
+            const action = entry.action;
             const t = action.toLowerCase();
             
             // Finde den exakten Start-Zeitpunkt
@@ -71,7 +71,7 @@ window.CPR.Export = (function() {
             if (t.includes('abbruch:')) abbruchReason = action;
             if (t.includes('schock') && !t.includes('schockbar')) shocks++;
             if (t.includes('adrenalin')) adr++;
-            if (t.includes('amiodaron')) amio++;
+            if (t.includes('amiodaron') || t.includes('amio')) amio++;
             if (t.includes('atemweg:')) airway = action.replace('Atemweg: ', '');
             if (t.includes('zugang:')) zugang = action.replace('Zugang: ', '');
             if (action.startsWith('ROSC: ')) postRosc.push(action.replace('ROSC: ', ''));
@@ -90,6 +90,7 @@ window.CPR.Export = (function() {
         if (firstEventTime && roscEventTime) {
             const parseTime = (ts) => {
                 const p = ts.split(':');
+                if(p.length < 3) return 0;
                 return parseInt(p[0])*3600 + parseInt(p[1])*60 + parseInt(p[2]);
             };
             const diff = parseTime(roscEventTime) - parseTime(firstEventTime);
@@ -148,13 +149,13 @@ window.CPR.Export = (function() {
 
     // --- 3. EXPORT FUNKTIONEN ---
     function getFullText() {
-        const logs = window.CPR.Globals?.sysLogs || [];
+        // HIER IST DER FIX: Wir nutzen die neuen AppState.protocolData Objekte
+        const entries = window.CPR.AppState?.protocolData || [];
         const isShort = window.CPR.AppState?.protocolViewMode === 'summary';
         
         let out = "CPR ASSIST - EINSATZPROTOKOLL\n";
         out += "Datum: " + new Date().toLocaleDateString() + "\n";
         
-        // Säubert "Startzeit: Start: 14:30" zu "Startzeit: 14:30 Uhr"
         const uiStart = document.getElementById('start-time')?.innerText || '--:--';
         out += "Startzeit: " + uiStart.replace('Start: ', '').trim() + " Uhr\n";
         
@@ -167,12 +168,14 @@ window.CPR.Export = (function() {
         out += "========================================\n\n";
 
         if (isShort) {
-            out += buildSummaryLog(logs);
+            out += buildSummaryLog(entries);
         } else {
             out += "DEBRIEFING / VOLLSTÄNDIGER VERLAUF:\n\n";
-            logs.forEach(log => { out += log + "\n"; });
+            entries.forEach(entry => { 
+                out += `${entry.time} Uhr: ${entry.action}\n`; 
+            });
             out += "\n========================================\n";
-            out += buildSummaryLog(logs); 
+            out += buildSummaryLog(entries); 
         }
         
         return out;
@@ -245,7 +248,8 @@ window.CPR.Export = (function() {
         doc.line(10, 42, 200, 42);
 
         const isShort = window.CPR.AppState?.protocolViewMode === 'summary';
-        const logs = window.CPR.Globals?.sysLogs || [];
+        // HIER IST DER FIX: Objekte lesen statt Strings!
+        const entries = window.CPR.AppState?.protocolData || [];
         
         let yPos = 50;
 
@@ -255,7 +259,7 @@ window.CPR.Export = (function() {
             yPos += 8;
             
             doc.setFont("helvetica", "normal");
-            const summaryLines = doc.splitTextToSize(buildSummaryLog(logs), 190);
+            const summaryLines = doc.splitTextToSize(buildSummaryLog(entries), 190);
             doc.text(summaryLines, 10, yPos);
         } else {
             doc.setFont("helvetica", "bold");
@@ -264,17 +268,16 @@ window.CPR.Export = (function() {
             
             doc.setFont("helvetica", "normal");
             doc.setFontSize(9);
-            logs.forEach(log => {
+            
+            entries.forEach(entry => {
                 if (yPos > 280) {
                     doc.addPage();
                     yPos = 20;
                 }
                 
-                const iconMatch = getIconData(log);
-                let lineStr = log;
-                if (iconMatch) {
-                    lineStr = `[${iconMatch.icon}] ${log}`;
-                }
+                const iconMatch = getIconData(entry.action);
+                // Sauberer Text, z.B.: "[ADR] 14:30:00 Uhr: Adrenalin (1 mg) gegeben"
+                let lineStr = `[${iconMatch.icon}] ${entry.time} Uhr: ${entry.action}`;
                 
                 const split = doc.splitTextToSize(lineStr, 190);
                 doc.text(split, 10, yPos);
@@ -288,7 +291,7 @@ window.CPR.Export = (function() {
             doc.text("ZUSAMMENFASSUNG (SBAR):", 10, yPos);
             yPos += 8;
             doc.setFont("helvetica", "normal");
-            const summaryLines = doc.splitTextToSize(buildSummaryLog(logs), 190);
+            const summaryLines = doc.splitTextToSize(buildSummaryLog(entries), 190);
             doc.text(summaryLines, 10, yPos);
         }
 
