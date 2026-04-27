@@ -9,6 +9,7 @@
  * - UX FIX (Space Reservation): Target-Displacement im Onboarding behoben. Button hüpft nicht mehr!
  * - BULLETPROOF FIX: Top Stats werden über redundante DOM-Befehle garantiert eingeblendet.
  * - TIME TRAVEL FIX: CPR und CCF-Berechnung laufen während App-Backgrounding lückenlos weiter.
+ * - OVERLAP FIX: Redundanter "Jetzt hier drücken" Text entfernt für saubereres Layout im kleinen Button.
  */
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -52,11 +53,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     <span id="precharge-time" class="vt-alert-num text-[#E3000F]">15</span>
                 </div>
 
+                <!-- OVERLAP FIX: Redundanter Subtext "Jetzt hier drücken" wurde entfernt! -->
                 <div id="inner-analyze-alert" class="hidden vt-alert-box">
                     <div class="vt-analyze-badge animate-pulse">
                         <span class="vt-analyze-txt">Analyse Fällig</span>
                     </div>
-                    <span class="vt-analyze-sub">Jetzt hier drücken</span>
                 </div>
 
                 <!-- 4. Unten: Schock Info -->
