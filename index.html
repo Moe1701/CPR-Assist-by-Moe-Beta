@@ -109,7 +109,7 @@
     <main id="cpr-interface" class="flex-1 relative z-20 w-full">
         
         <!-- 🌟 KREIS-MENÜ (ORBIT) - 40px NACH UNTEN VERSCHOBEN 🌟 -->
-        <div id="orbit-wrapper" class="absolute inset-0 flex items-center justify-center pointer-events-none z-[55] translate-y-[40px]">
+        <div id="orbit-wrapper" class="absolute inset-0 flex items-center justify-center pointer-events-none z-[55]">
             <div class="relative flex items-center justify-center">
                 
                 <div id="satellites" class="contents hidden">
@@ -192,11 +192,12 @@
                     <span id="cpr-main-text" class="text-[12px] font-bold tracking-wide uppercase pointer-events-none whitespace-nowrap mt-1 text-slate-600 transition-colors">CPR START</span>
                 </button>
                 
-                <!-- ZENTRALER KREIS (Exakt 330px) -->
+                <!-- ZENTRALER KREIS -->
                 <div id="main-btn-area" style="width: 330px; height: 330px;" class="rounded-full bg-white shadow-[0_20px_60px_rgba(0,0,0,0.05)] cursor-pointer z-30 transition-all duration-500 overflow-hidden relative pointer-events-auto flex items-center justify-center">
                     
                     <canvas id="progress-circle" width="330" height="330" class="absolute inset-0 w-full h-full pointer-events-none transition-opacity duration-500 z-10 opacity-0" style="transform: rotate(-90deg);"></canvas>
                     
+                    <!-- ONBOARDING 1 -->
                     <div id="view-ob-1" class="absolute inset-0 w-full h-full z-20 bg-white">
                         <div class="absolute top-[35px] w-full flex justify-center">
                             <span class="text-[16px] font-black text-slate-700 uppercase tracking-[0.25em] pointer-events-none drop-shadow-sm">Patient wählen</span>
@@ -215,6 +216,7 @@
                         </div>
                     </div>
 
+                    <!-- INIT BEATMUNGEN -->
                     <div id="view-initial-breaths" class="hidden absolute inset-0 w-full h-full z-20 bg-white">
                         <div class="absolute top-[25px] w-full flex justify-center">
                             <span class="text-[16px] font-black text-slate-700 uppercase tracking-[0.25em] pointer-events-none text-center leading-tight drop-shadow-sm">5 Initiale<br>Beatmungen</span>
@@ -235,6 +237,7 @@
                         </div>
                     </div>
 
+                    <!-- CPR START -->
                     <div id="view-ob-2" class="hidden absolute inset-0 w-full h-full z-20 pointer-events-none bg-white">
                         <div class="absolute top-[35px] w-full flex justify-center">
                             <span class="text-[16px] font-black text-slate-700 uppercase tracking-[0.25em] pointer-events-none text-center leading-tight drop-shadow-sm">Kompression<br>gestartet?</span>
@@ -250,6 +253,7 @@
                         </div>
                     </div>
 
+                    <!-- ANALYSE -->
                     <div id="view-ob-3" class="hidden absolute inset-0 w-full h-full z-20 pointer-events-none overflow-hidden rounded-full bg-white">
                         <div class="absolute inset-0 w-full h-full pointer-events-none z-0" style="clip-path:polygon(70% 0%, 15% 55%, 45% 55%, 30% 100%, 85% 45%, 55% 45%);background:repeating-linear-gradient(-45deg, rgba(227,0,15,0.08) 0px, rgba(227,0,15,0.08) 4px, transparent 4px, transparent 8px);transform:scale(1.5);"></div>
                         <div class="absolute top-[35px] w-full flex justify-center z-10">
@@ -263,6 +267,7 @@
                         </div>
                     </div>
                     
+                    <!-- ENTSCHEIDUNG -->
                     <div id="view-decision" class="hidden absolute inset-0 w-full h-full z-20 bg-white">
                         <div class="absolute top-[35px] w-full flex justify-center">
                             <span class="text-[16px] font-black text-slate-700 uppercase tracking-[0.25em] pointer-events-none drop-shadow-sm">Rhythmus ist:</span>
@@ -279,9 +284,13 @@
                                 <span class="pointer-events-none">Nicht Schockbar</span>
                             </button>
                         </div>
-                        <button id="btn-decision-cancel" class="absolute bottom-[20px] w-full text-center text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] p-2 active:scale-95 transition-all pointer-events-auto">Zurück</button>
+                        
+                        <div class="absolute bottom-[25px] left-1/2 -translate-x-1/2 w-[85%] flex z-50 pointer-events-auto">
+                            <button id="btn-decision-cancel" class="w-full bg-white border border-slate-200 text-slate-500 py-3 rounded-full active:scale-95 text-[10px] font-bold uppercase tracking-wider shadow-sm transition-all hover:border-slate-300">Zurück</button>
+                        </div>
                     </div>
                     
+                    <!-- CPR RESUME -->
                     <div id="view-cpr-resume" class="hidden absolute inset-0 w-full h-full z-20 bg-white">
                         <div class="absolute top-[35px] w-full flex justify-center">
                             <span class="text-[16px] font-black text-slate-700 uppercase tracking-[0.25em] pointer-events-none drop-shadow-sm">CPR Fortsetzen</span>
@@ -297,127 +306,181 @@
                         </div>
                     </div>
                     
+                    <!-- TIMER VIEW -->
                     <div id="view-timer" class="hidden absolute inset-0 w-full h-full z-20 pointer-events-none rounded-full">
-                        <div class="absolute top-[10px] w-full flex flex-col items-center pointer-events-none gap-1 z-30">
-                            <div id="inner-prepare-alert" class="hidden bg-indigo-50 text-indigo-700 border border-indigo-200 px-4 py-1 rounded-full font-black text-[9px] uppercase tracking-widest animate-pulse flex items-center gap-1.5 shadow-sm"><i class="fa-solid fa-hand-holding-medical"></i> Puls tasten (<span id="prepare-time">30</span>s)</div>
-                            <div id="inner-precharge-alert" class="hidden bg-amber-400 text-black px-4 py-1 rounded-full font-black text-[9px] uppercase tracking-widest animate-pulse flex items-center gap-1.5 shadow-sm"><i class="fa-solid fa-bolt"></i> PRECHARGE (<span id="precharge-time">15</span>s)</div>
-                        </div>
-                        <div class="absolute top-[25px] w-full flex flex-col items-center justify-center">
-                            <span id="cycle-label" class="text-[14px] font-black text-slate-700 uppercase tracking-[0.3em] pointer-events-none mb-1 drop-shadow-sm">Zyklus</span>
-                            <span id="cycle-timer" class="text-[72px] font-mono font-black tracking-tighter text-slate-800 leading-none pointer-events-none">02:00</span>
-                        </div>
-                        <div class="absolute top-[125px] w-full flex justify-center pointer-events-none z-20">
-                            <div class="bg-white border-2 border-slate-100 rounded-full px-5 py-2 flex items-center justify-center gap-2 text-[12px] font-black shadow-md text-slate-700">
-                                <i class="fa-solid fa-bolt text-amber-500"></i>
-                                <span><span id="rhythm-info-shocks">0</span>x Schocks</span>
-                                <span class="text-slate-300 mx-1">|</span>
-                                <span class="text-[#E3000F]"><span id="rhythm-info-joule">-- J</span></span>
-                            </div>
-                        </div>
-                        <div class="absolute top-[175px] w-full flex flex-col items-center px-4 z-20 pointer-events-auto">
-                            <button id="btn-permanent-analyze" class="w-[85%] bg-white border-2 border-slate-200 rounded-full py-4 shadow-[0_10px_25px_rgba(0,0,0,0.08)] active:scale-95 transition-all flex flex-col items-center justify-center relative overflow-hidden group hover:border-slate-300">
-                                <div id="analyze-pulse-bg" class="absolute inset-0 w-full h-full opacity-0 transition-opacity duration-300" style="background:repeating-linear-gradient(-45deg, rgba(227,0,15,0.05) 0px, rgba(227,0,15,0.05) 4px, transparent 4px, transparent 8px);"></div>
-                                <div class="relative z-10 flex flex-col items-center w-full">
-                                    <span id="analyze-text-top" class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1 transition-colors">Bei Rhythmusanalyse</span>
-                                    <span id="analyze-text-main" class="text-[16px] font-black text-[#E3000F] uppercase tracking-widest leading-none flex items-center gap-2 transition-colors">
-                                        <i class="fa-solid fa-bolt text-red-500"></i> Hier drücken
-                                    </span>
-                                </div>
-                            </button>
-                        </div>
+                        <!-- Wird via app.js dynamisch gefüllt -->
                     </div>
                     
-                    <div id="view-joule" class="hidden absolute inset-0 w-full h-full z-20 bg-white flex-col items-center justify-center pointer-events-none">
+                    <!-- JOULE -->
+                    <div id="view-joule" class="hidden absolute inset-0 w-full h-full z-20 bg-white rounded-full flex-col items-center justify-center pointer-events-none">
                         <span class="absolute top-[35px] w-full text-center text-[16px] font-black text-slate-700 uppercase tracking-[0.25em] drop-shadow-sm">Energie wählen</span>
-                        <div id="joule-container" class="flex flex-col w-[90%] max-w-[300px] pointer-events-auto z-10"></div>
-                        <span class="absolute bottom-[50px] w-full text-center text-[9px] font-bold text-red-400 uppercase tracking-[0.2em] animate-pulse">
+                        <div id="joule-container" class="flex flex-col w-[85%] pointer-events-auto z-10"></div>
+                        
+                        <span class="absolute bottom-[75px] w-full text-center text-[10px] font-bold text-red-500 uppercase tracking-[0.2em] animate-pulse">
                             <i class="fa-solid fa-bolt mr-1"></i> Nach Schock bestätigen
                         </span>
-                        <button id="btn-joule-cancel" class="absolute bottom-[20px] w-full text-center text-[11px] font-black text-slate-400 uppercase tracking-widest p-2 active:scale-95 transition-all pointer-events-auto">Zurück</button>
-                    </div>
-                    
-                    <div id="view-meds-menu" class="hidden flex-col items-center justify-start w-full h-full z-20 pt-4 text-center absolute inset-0 bg-white rounded-full">
-                        <span class="text-[10px] font-bold text-slate-500 uppercase tracking-[0.15em] mb-1 pointer-events-none shrink-0">Medikamente</span>
-                        <div class="w-[90%] mx-auto h-[160px] overflow-y-auto custom-scrollbar px-1 pb-4 pointer-events-auto">
-                            <div id="amio-container" class="grid grid-cols-2 gap-1.5 w-full mb-2 border-b border-slate-100 pb-2"></div>
-                            <div id="sonstige-container" class="grid grid-cols-2 gap-1.5 w-full"></div>
-                        </div>
-                        <div class="absolute bottom-2 w-full flex justify-center bg-white pt-1">
-                            <button id="btn-meds-cancel" class="text-[10px] font-bold text-slate-500 uppercase tracking-widest py-2 px-6 bg-white border border-slate-200 active:bg-slate-50 rounded-full shadow-sm transition-all pointer-events-auto">Zurück</button>
+                        
+                        <div class="absolute bottom-[25px] left-1/2 -translate-x-1/2 w-[85%] flex z-50 pointer-events-auto">
+                            <button id="btn-joule-cancel" class="w-full bg-white border border-slate-200 text-slate-500 py-3 rounded-full active:scale-95 text-[10px] font-bold uppercase tracking-wider shadow-sm transition-all hover:border-slate-300">Zurück</button>
                         </div>
                     </div>
                     
-                    <div id="view-airway" class="hidden flex-col items-center justify-start w-full h-full z-20 px-3 pt-3 text-center absolute inset-0 bg-white rounded-full">
-                        <span class="text-[10px] font-bold text-slate-500 uppercase tracking-[0.15em] mb-1 pointer-events-none shrink-0">Atemweg wählen</span>
-                        <div id="pediatric-airway-info" class="hidden w-[95%] mx-auto bg-cyan-50 border border-cyan-200 rounded-xl p-2 mb-1 text-left shadow-sm shrink-0">
-                            <span class="text-[8px] font-black text-cyan-600 uppercase tracking-widest block mb-0.5 border-b border-cyan-100 pb-0.5 flex justify-between items-center pointer-events-none"><span>Material (<span id="airway-info-kg">--</span>)</span><span><i class="fa-solid fa-baby text-cyan-500 text-sm"></i></span></span>
-                            <div class="grid grid-cols-2 gap-x-2 gap-y-0 text-[9px] font-bold text-slate-700 pointer-events-none">
+                    <!-- MEDIKAMENTE MENÜ -->
+                    <div id="view-meds-menu" class="hidden absolute inset-0 w-full h-full z-20 bg-white rounded-full flex-col items-center justify-start pt-8 text-center">
+                        <span class="text-[15px] font-black text-slate-700 uppercase tracking-[0.25em] mb-4 pointer-events-none shrink-0 drop-shadow-sm">Medikamente</span>
+                        <div class="w-[90%] mx-auto h-[160px] overflow-y-auto custom-scrollbar px-1 pb-10 pointer-events-auto">
+                            <div id="amio-container" class="grid grid-cols-2 gap-2 w-full mb-3 border-b border-slate-100 pb-3"></div>
+                            <div id="sonstige-container" class="grid grid-cols-2 gap-2 w-full"></div>
+                        </div>
+                        
+                        <div class="absolute bottom-[25px] left-1/2 -translate-x-1/2 w-[85%] flex z-50 pointer-events-auto">
+                            <button id="btn-meds-cancel" class="w-full bg-white border border-slate-200 text-slate-500 py-3 rounded-full active:scale-95 text-[10px] font-bold uppercase tracking-wider shadow-sm transition-all hover:border-slate-300">Zurück</button>
+                        </div>
+                    </div>
+                    
+                    <!-- 🌟 NEUES PREMIUM ATEMWEG MENÜ 🌟 -->
+                    <div id="view-airway" class="hidden absolute inset-0 w-full h-full z-20 bg-white rounded-full flex-col items-center justify-start px-5 pt-8 text-center">
+                        <span class="text-[15px] font-black text-slate-700 uppercase tracking-[0.25em] mb-2 pointer-events-none shrink-0 drop-shadow-sm">Atemweg</span>
+                        
+                        <div id="pediatric-airway-info" class="hidden w-full bg-cyan-50 border border-cyan-200 rounded-2xl p-2.5 mb-2 text-left shadow-[0_2px_10px_rgba(6,182,212,0.05)] shrink-0">
+                            <span class="text-[9px] font-black text-cyan-700 uppercase tracking-widest block mb-1 border-b border-cyan-100 pb-1 flex justify-between items-center pointer-events-none">
+                                <span>Material (<span id="airway-info-kg">--</span>)</span>
+                                <i class="fa-solid fa-baby text-cyan-500 text-sm"></i>
+                            </span>
+                            <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] font-bold text-slate-600 pointer-events-none">
                                 <div class="flex justify-between"><span>Tubus:</span> <span id="airway-info-tubus" class="text-slate-900 font-black">--</span></div>
                                 <div class="flex justify-between"><span>Tiefe:</span> <span id="airway-info-tiefe" class="text-slate-900 font-black">--</span></div>
                                 <div class="flex justify-between"><span>Wendel:</span> <span id="airway-info-wendel" class="text-slate-900 font-black">--</span></div>
                                 <div class="flex justify-between"><span>Guedel:</span> <span id="airway-info-guedel" class="text-slate-900 font-black">--</span></div>
                             </div>
                         </div>
-                        <div id="airway-buttons-container" class="grid grid-cols-2 gap-1 w-[95%] mx-auto mt-1 shrink-0 pointer-events-auto"></div>
-                        <div class="flex gap-1 w-[95%] mx-auto mt-2 shrink-0 pointer-events-auto">
-                            <button id="btn-airway-cancel" class="text-[8px] font-bold text-slate-500 bg-white border border-slate-200 px-2 py-2 rounded-full uppercase tracking-widest flex-1 active:bg-slate-50 transition-all shadow-sm">Zurück</button>
-                            <button id="btn-airway-edit-doc" class="text-[8px] font-bold text-blue-600 bg-blue-50 border border-blue-100 px-2 py-2 rounded-full uppercase tracking-widest flex-1 hidden active:bg-blue-100 transition-all shadow-sm">Doku</button>
-                            <button id="btn-airway-remove" class="text-[8px] font-bold text-red-600 bg-red-50 border border-red-100 px-2 py-2 rounded-full uppercase tracking-widest flex-1 hidden active:bg-red-100 transition-all shadow-sm">Entf.</button>
+                        
+                        <div id="airway-buttons-container" class="grid grid-cols-2 gap-2 w-full mt-1 shrink-0 pointer-events-auto"></div>
+                        
+                        <div class="absolute bottom-[25px] left-1/2 -translate-x-1/2 w-[85%] flex gap-2 z-50 pointer-events-auto">
+                            <button id="btn-airway-cancel" class="bg-white border border-slate-200 text-slate-500 py-3 rounded-full flex-1 active:scale-95 text-[10px] font-bold uppercase tracking-wider shadow-sm transition-all hover:border-slate-300">Zurück</button>
+                            <button id="btn-airway-edit-doc" class="bg-blue-50 border border-blue-200 text-blue-700 py-3 rounded-full flex-1 hidden active:scale-95 text-[10px] font-bold uppercase tracking-wider shadow-sm transition-all">Doku</button>
+                            <button id="btn-airway-remove" class="bg-red-50 border border-red-200 text-red-700 py-3 rounded-full flex-1 hidden active:scale-95 text-[10px] font-bold uppercase tracking-wider shadow-sm transition-all">Entf.</button>
                         </div>
                     </div>
                     
-                    <div id="view-airway-doc" class="hidden flex-col items-center justify-start w-full h-full z-20 px-4 pt-4 text-center absolute inset-0 bg-white rounded-full">
-                        <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 shrink-0">Details (<span id="doc-airway-type"></span>)</span>
-                        <div class="flex gap-1.5 w-[95%] mx-auto mb-2 shrink-0 pointer-events-auto">
-                            <input type="text" id="aw-size" placeholder="Größe" class="w-1/3 bg-slate-50 border border-slate-200 p-2 text-xs font-bold text-slate-700 text-center rounded-xl outline-none focus:border-cyan-400">
-                            <input type="text" id="aw-depth" placeholder="Tiefe" class="w-1/3 bg-slate-50 border border-slate-200 p-2 text-xs font-bold text-slate-700 text-center rounded-xl outline-none focus:border-cyan-400">
-                            <input type="number" id="aw-cuff" placeholder="Cuff" value="25" class="w-1/3 bg-slate-50 border border-slate-200 p-2 text-xs font-bold text-slate-700 text-center rounded-xl outline-none focus:border-cyan-400">
+                    <!-- 🌟 NEUES PREMIUM ATEMWEG DOKU MENÜ 🌟 -->
+                    <div id="view-airway-doc" class="hidden absolute inset-0 w-full h-full z-20 bg-white rounded-full flex-col items-center justify-start px-5 pt-8 text-center">
+                        <span class="text-[15px] font-black text-slate-700 uppercase tracking-[0.25em] mb-4 shrink-0 drop-shadow-sm">Details (<span id="doc-airway-type"></span>)</span>
+                        
+                        <div class="w-full flex flex-col gap-2.5 pointer-events-auto">
+                            <div class="flex gap-2 w-full">
+                                <input type="text" id="aw-size" placeholder="Größe" class="w-1/2 bg-slate-50 border border-slate-200 py-3 px-2 text-[12px] font-bold text-slate-700 text-center rounded-2xl outline-none focus:border-cyan-400 shadow-sm transition-all">
+                                <input type="text" id="aw-depth" placeholder="Tiefe" class="w-1/2 bg-slate-50 border border-slate-200 py-3 px-2 text-[12px] font-bold text-slate-700 text-center rounded-2xl outline-none focus:border-cyan-400 shadow-sm transition-all">
+                            </div>
+                            
+                            <div class="relative w-full">
+                                <input type="number" id="aw-cuff" placeholder="Cuff" value="25" class="w-full bg-slate-50 border border-slate-200 py-3 px-4 text-[12px] font-bold text-slate-700 text-center rounded-2xl outline-none focus:border-cyan-400 shadow-sm transition-all pr-12">
+                                <span class="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">mbar</span>
+                            </div>
+
+                            <div class="text-[9px] font-bold text-emerald-600 bg-emerald-50 py-2.5 rounded-xl border border-emerald-200 w-full shadow-sm mt-1">
+                                <i class="fa-solid fa-check-double mr-1"></i> EtCO2 & Cuffdruck prüfen!
+                            </div>
                         </div>
-                        <div class="text-[8px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg mb-2 border border-emerald-200 shrink-0 w-[95%] mx-auto shadow-sm">
-                            <i class="fa-solid fa-check-double"></i> EtCO2 & Cuffdruck prüfen!
-                        </div>
-                        <div class="flex gap-1.5 w-[95%] mx-auto shrink-0 pointer-events-auto">
-                            <button id="btn-airway-doc-cancel" class="bg-white border border-slate-200 text-slate-600 py-2.5 rounded-xl flex-1 text-[9px] font-bold uppercase active:scale-95 transition-all shadow-sm">Zurück</button>
-                            <button id="btn-airway-doc-save" class="bg-cyan-50 border border-cyan-200 text-cyan-700 py-2.5 rounded-xl flex-1 text-[9px] font-bold uppercase shadow-sm active:scale-95 transition-all">Speichern</button>
-                        </div>
-                    </div>
-                    
-                    <div id="view-zugang" class="hidden flex-col items-center justify-start w-full h-full gap-1.5 z-20 px-5 pt-4 text-center absolute inset-0 bg-white rounded-full">
-                        <span class="text-[10px] font-bold text-slate-500 uppercase tracking-[0.15em] mb-1 pointer-events-none shrink-0">Zugang doku.</span>
-                        <select id="zugang-typ" class="w-[95%] bg-slate-50 border border-slate-200 rounded-full p-1.5 px-3 text-[10px] font-bold text-slate-700 outline-none shrink-0 pointer-events-auto">
-                            <option value="i.v.">i.v. (Intravenös)</option><option value="i.o.">i.o. (Intraossär)</option>
-                        </select>
-                        <select id="zugang-groesse" class="w-[95%] bg-slate-50 border border-slate-200 rounded-full p-1.5 px-3 text-[10px] font-bold text-slate-700 outline-none shrink-0 pointer-events-auto">
-                            <optgroup label="i.v. Farben"><option value="Gelb (24G)">Gelb (24G)</option><option value="Blau (22G)">Blau (22G)</option><option value="Rosa (20G)">Rosa (20G)</option><option value="Grün (18G)" selected>Grün (18G)</option><option value="Weiß (17G)">Weiß (17G)</option><option value="Grau (16G)">Grau (16G)</option><option value="Orange (14G)">Orange (14G)</option></optgroup>
-                            <optgroup label="i.o. Nadeln"><option value="EZ-IO Blau">EZ-IO Blau (Erw.)</option><option value="EZ-IO Pink">EZ-IO Pink (Kind)</option><option value="EZ-IO Gelb">EZ-IO Gelb (Adipös)</option></optgroup>
-                        </select>
-                        <select id="zugang-ort" class="w-[95%] bg-slate-50 border border-slate-200 rounded-full p-1.5 px-3 text-[10px] font-bold text-slate-700 outline-none shrink-0 pointer-events-auto">
-                            <optgroup label="i.v. Orte"><option value="Handrücken" selected>Handrücken</option><option value="Unterarm">Unterarm</option><option value="Ellenbeuge">Ellenbeuge</option><option value="Jugularis">V. jugularis</option></optgroup>
-                            <optgroup label="i.o. Orte"><option value="Tibia prox.">Tibia prox.</option><option value="Tibia dist.">Tibia dist.</option><option value="Femur">Femur</option><option value="Humerus">Humerus</option></optgroup>
-                        </select>
-                        <div class="flex gap-1.5 w-[95%] mt-1 shrink-0 pointer-events-auto">
-                            <button id="btn-zugang-cancel" class="bg-white border border-slate-200 text-slate-600 py-2.5 rounded-full flex-1 active:scale-95 text-[9px] font-bold uppercase shadow-sm transition-all">Zurück</button>
-                            <button id="btn-zugang-save" class="bg-indigo-50 border border-indigo-200 text-indigo-700 py-2.5 rounded-full flex-1 active:scale-95 text-[9px] font-bold uppercase shadow-sm transition-all">Speichern</button>
+                        
+                        <div class="absolute bottom-[25px] left-1/2 -translate-x-1/2 w-[85%] flex gap-2 z-50 pointer-events-auto">
+                            <button id="btn-airway-doc-cancel" class="bg-white border border-slate-200 text-slate-500 py-3 rounded-full flex-1 active:scale-95 text-[10px] font-bold uppercase tracking-wider shadow-sm transition-all hover:border-slate-300">Zurück</button>
+                            <button id="btn-airway-doc-save" class="bg-cyan-50 border border-cyan-200 text-cyan-700 py-3 rounded-full flex-1 active:scale-95 text-[10px] font-bold uppercase tracking-wider shadow-[0_5px_15px_rgba(6,182,212,0.15)] transition-all hover:shadow-md">Speichern</button>
                         </div>
                     </div>
                     
-                    <div id="view-rosc-end" class="hidden flex-col items-center justify-center w-full h-full gap-2.5 z-20 px-5 pt-5 text-center absolute inset-0 bg-white rounded-full">
-                        <span class="text-[10px] font-bold text-slate-500 uppercase tracking-[0.15em] mb-1 pointer-events-none">Einsatz beenden</span>
-                        <button id="btn-opt-rosc" class="bg-emerald-50 border border-emerald-200 text-emerald-700 py-3.5 rounded-full shadow-sm w-[90%] flex flex-col items-center justify-center active:scale-95 transition-all pointer-events-auto">
-                            <span class="text-xs font-bold uppercase tracking-[0.2em] pointer-events-none">ROSC</span>
+                    <!-- 🌟 NEUES PREMIUM ZUGANG MENÜ 🌟 -->
+                    <div id="view-zugang" class="hidden absolute inset-0 w-full h-full z-20 bg-white rounded-full flex-col items-center justify-start px-5 pt-8 text-center">
+                        <span class="text-[15px] font-black text-slate-700 uppercase tracking-[0.25em] mb-4 pointer-events-none shrink-0 drop-shadow-sm">Zugang</span>
+                        
+                        <div class="w-full flex flex-col gap-2.5 pointer-events-auto">
+                            <!-- TYP -->
+                            <div class="relative w-full">
+                                <select id="zugang-typ" class="w-full appearance-none bg-slate-50 border border-slate-200 rounded-2xl py-3 px-4 text-[12px] font-bold text-slate-700 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all shadow-sm cursor-pointer">
+                                    <option value="i.v.">💉 i.v. (Intravenös)</option>
+                                    <option value="i.o.">🦴 i.o. (Intraossär)</option>
+                                </select>
+                                <i class="fa-solid fa-chevron-down absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] pointer-events-none"></i>
+                            </div>
+                            
+                            <!-- GRÖSSE -->
+                            <div class="relative w-full">
+                                <select id="zugang-groesse" class="w-full appearance-none bg-slate-50 border border-slate-200 rounded-2xl py-3 px-4 text-[12px] font-bold text-slate-700 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all shadow-sm cursor-pointer">
+                                    <optgroup label="i.v. Farben">
+                                        <option value="Gelb (24G)">🟡 Gelb (24G)</option>
+                                        <option value="Blau (22G)">🔵 Blau (22G)</option>
+                                        <option value="Rosa (20G)">🌸 Rosa (20G)</option>
+                                        <option value="Grün (18G)" selected>🟢 Grün (18G)</option>
+                                        <option value="Weiß (17G)">⚪ Weiß (17G)</option>
+                                        <option value="Grau (16G)">🔘 Grau (16G)</option>
+                                        <option value="Orange (14G)">🟠 Orange (14G)</option>
+                                    </optgroup>
+                                    <optgroup label="i.o. Nadeln">
+                                        <option value="EZ-IO Blau">🟦 EZ-IO Blau (Erw.)</option>
+                                        <option value="EZ-IO Pink">🟪 EZ-IO Pink (Kind)</option>
+                                        <option value="EZ-IO Gelb">🟨 EZ-IO Gelb (Adipös)</option>
+                                    </optgroup>
+                                </select>
+                                <i class="fa-solid fa-chevron-down absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] pointer-events-none"></i>
+                            </div>
+                            
+                            <!-- ORT -->
+                            <div class="relative w-full">
+                                <select id="zugang-ort" class="w-full appearance-none bg-slate-50 border border-slate-200 rounded-2xl py-3 px-4 text-[12px] font-bold text-slate-700 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all shadow-sm cursor-pointer">
+                                    <optgroup label="i.v. Orte">
+                                        <option value="Handrücken" selected>Handrücken</option>
+                                        <option value="Unterarm">Unterarm</option>
+                                        <option value="Ellenbeuge">Ellenbeuge</option>
+                                        <option value="Jugularis">V. jugularis</option>
+                                    </optgroup>
+                                    <optgroup label="i.o. Orte">
+                                        <option value="Tibia prox.">Tibia prox.</option>
+                                        <option value="Tibia dist.">Tibia dist.</option>
+                                        <option value="Femur">Femur</option>
+                                        <option value="Humerus">Humerus</option>
+                                    </optgroup>
+                                </select>
+                                <i class="fa-solid fa-chevron-down absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] pointer-events-none"></i>
+                            </div>
+                        </div>
+                        
+                        <div class="absolute bottom-[25px] left-1/2 -translate-x-1/2 w-[85%] flex gap-2 z-50 pointer-events-auto">
+                            <button id="btn-zugang-cancel" class="bg-white border border-slate-200 text-slate-500 py-3 rounded-full flex-1 active:scale-95 text-[10px] font-bold uppercase tracking-wider shadow-sm transition-all hover:border-slate-300">Zurück</button>
+                            <button id="btn-zugang-save" class="bg-indigo-50 border border-indigo-200 text-indigo-700 py-3 rounded-full flex-1 active:scale-95 text-[10px] font-bold uppercase tracking-wider shadow-[0_5px_15px_rgba(79,70,229,0.15)] transition-all hover:shadow-md">Speichern</button>
+                        </div>
+                    </div>
+                    
+                    <!-- ROSC / ENDE -->
+                    <div id="view-rosc-end" class="hidden absolute inset-0 w-full h-full z-20 bg-white rounded-full flex-col items-center justify-start px-5 pt-8 text-center pointer-events-none">
+                        <span class="text-[15px] font-black text-slate-700 uppercase tracking-[0.25em] mb-4 drop-shadow-sm">Einsatz beenden</span>
+                        
+                        <button id="btn-opt-rosc" class="bg-emerald-50 border border-emerald-200 text-emerald-700 py-3.5 rounded-2xl shadow-sm w-full flex flex-col items-center justify-center active:scale-95 transition-all pointer-events-auto mb-2">
+                            <span class="text-[12px] font-black uppercase tracking-[0.2em] pointer-events-none">❤️ ROSC</span>
                         </button>
-                        <button id="btn-opt-abbruch" class="bg-white border border-slate-200 text-slate-700 py-3.5 rounded-full shadow-sm w-[90%] flex flex-col items-center justify-center active:scale-95 transition-all pointer-events-auto">
-                            <span class="text-xs font-bold uppercase tracking-[0.2em] pointer-events-none">Abbruch</span>
+                        
+                        <button id="btn-opt-abbruch" class="bg-white border border-slate-200 text-slate-700 py-3.5 rounded-2xl shadow-sm w-full flex flex-col items-center justify-center active:scale-95 transition-all pointer-events-auto hover:bg-slate-50">
+                            <span class="text-[12px] font-black uppercase tracking-[0.2em] pointer-events-none">🛑 Abbruch</span>
                         </button>
-                        <button id="btn-rosc-cancel" class="mt-1 text-[9px] font-bold text-slate-400 uppercase tracking-widest p-2 active:scale-90 transition-all pointer-events-auto">Zurück</button>
+                        
+                        <div class="absolute bottom-[25px] left-1/2 -translate-x-1/2 w-[85%] flex z-50 pointer-events-auto">
+                            <button id="btn-rosc-cancel" class="w-full bg-white border border-slate-200 text-slate-500 py-3 rounded-full active:scale-95 text-[10px] font-bold uppercase tracking-wider shadow-sm transition-all hover:border-slate-300">Zurück</button>
+                        </div>
                     </div>
                     
-                    <div id="view-abbruch-reason" class="hidden flex-col items-center justify-center w-full h-full gap-2 z-20 px-5 pt-3 text-center absolute inset-0 bg-white rounded-full pointer-events-auto">
-                        <span class="text-[9px] font-bold text-slate-500 uppercase tracking-[0.15em] mb-1 pointer-events-none">Grund für Abbruch:</span>
-                        <button id="btn-reason-team" class="bg-white border border-slate-200 text-slate-600 py-3 rounded-full shadow-sm w-[90%] active:scale-95 text-[10px] font-bold uppercase tracking-wider transition-all">Teamentscheidung</button>
-                        <button id="btn-reason-family" class="bg-white border border-slate-200 text-slate-600 py-3 rounded-full shadow-sm w-[90%] active:scale-95 text-[10px] font-bold uppercase tracking-wider transition-all">Angehörige</button>
-                        <button id="btn-reason-doc" class="bg-white border border-slate-200 text-slate-600 py-3 rounded-full shadow-sm w-[90%] active:scale-95 text-[10px] font-bold uppercase tracking-wider transition-all">Patientenverfügung</button>
-                        <button id="btn-abbruch-cancel" class="mt-1 text-[9px] font-bold text-slate-400 uppercase tracking-widest p-1.5 active:scale-90 transition-all">Zurück</button>
+                    <!-- ABBRUCH GRUND -->
+                    <div id="view-abbruch-reason" class="hidden absolute inset-0 w-full h-full z-20 bg-white rounded-full flex-col items-center justify-start px-5 pt-8 text-center pointer-events-auto">
+                        <span class="text-[13px] font-black text-slate-700 uppercase tracking-[0.2em] mb-4 drop-shadow-sm">Grund für Abbruch</span>
+                        
+                        <div class="flex flex-col gap-2 w-full">
+                            <button id="btn-reason-team" class="bg-white border border-slate-200 text-slate-600 py-3 rounded-2xl shadow-sm w-full active:scale-95 text-[11px] font-bold uppercase tracking-wider transition-all hover:bg-slate-50">Teamentscheidung</button>
+                            <button id="btn-reason-family" class="bg-white border border-slate-200 text-slate-600 py-3 rounded-2xl shadow-sm w-full active:scale-95 text-[11px] font-bold uppercase tracking-wider transition-all hover:bg-slate-50">Angehörige</button>
+                            <button id="btn-reason-doc" class="bg-white border border-slate-200 text-slate-600 py-3 rounded-2xl shadow-sm w-full active:scale-95 text-[11px] font-bold uppercase tracking-wider transition-all hover:bg-slate-50">Patientenverfügung</button>
+                        </div>
+                        
+                        <div class="absolute bottom-[25px] left-1/2 -translate-x-1/2 w-[85%] flex z-50 pointer-events-auto">
+                            <button id="btn-abbruch-cancel" class="w-full bg-white border border-slate-200 text-slate-500 py-3 rounded-full active:scale-95 text-[10px] font-bold uppercase tracking-wider shadow-sm transition-all hover:border-slate-300">Zurück</button>
+                        </div>
                     </div>
                 </div>
 
@@ -432,7 +495,6 @@
             <button id="btn-rosc-exit" class="flex-1 bg-slate-800 text-white py-3 rounded-xl shadow-md font-black uppercase text-xs tracking-widest active:scale-95 flex flex-col items-center justify-center">EINSATZ ENDE</button>
         </div>
         
-        <!-- NEU: Logbuch & SAMPLER Buttons im ROSC Modus -->
         <div class="flex gap-2 mb-3 shrink-0">
             <button id="btn-rosc-to-sampler" class="flex-1 bg-white border border-slate-200 text-slate-700 py-2.5 rounded-xl shadow-sm font-bold uppercase text-[10px] tracking-widest active:scale-95 flex flex-col items-center justify-center"><i class="fa-solid fa-clipboard-list mb-1 text-slate-400"></i> SAMPLER / HITS</button>
             <button id="btn-rosc-to-log" class="flex-1 bg-white border border-slate-200 text-slate-700 py-2.5 rounded-xl shadow-sm font-bold uppercase text-[10px] tracking-widest active:scale-95 flex flex-col items-center justify-center"><i class="fa-solid fa-clock-rotate-left mb-1 text-slate-400"></i> LOGBUCH</button>
@@ -506,7 +568,6 @@
                 <h3 class="text-lg font-black text-slate-800 uppercase tracking-widest">Pädiatrie Setup</h3>
             </div>
 
-            <!-- BLAU/ROSA BUTTONS ETC -->
             <div class="mb-3">
                 <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest block text-center mb-1.5">Maßband-Farbe (Schnellwahl)</span>
                 <div class="grid grid-cols-3 gap-1.5" id="color-grid">
@@ -540,7 +601,6 @@
                 </div>
             </div>
 
-            <!-- PROPORTIONALES SLIDER DESIGN START -->
             <div class="flex flex-col mb-3 px-3 py-1 bg-white rounded-[1.5rem] shadow-[0_4px_20px_rgb(0,0,0,0.04)] border border-slate-100">
                 <div class="flex flex-col gap-1 py-2 border-b border-dashed border-slate-100">
                     <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Alter</span>
@@ -688,14 +748,12 @@
             const btnSampler = document.getElementById('btn-rosc-to-sampler');
             const btnLog = document.getElementById('btn-rosc-to-log');
             
-            // Die exakten, existierenden IDs der Slide-Up-Panels nutzen!
             const hitsPanel = document.getElementById('hits-panel');
             const protocolPanel = document.getElementById('protocol-panel');
 
             if (btnSampler && hitsPanel) {
                 btnSampler.addEventListener('click', () => {
                     if (window.CPR && window.CPR.Utils) window.CPR.Utils.vibrate(20);
-                    // Panel sauber animiert hochfahren, wie im restlichen System
                     hitsPanel.classList.remove('translate-y-full');
                 });
             }
@@ -703,9 +761,7 @@
             if (btnLog && protocolPanel) {
                 btnLog.addEventListener('click', () => {
                     if (window.CPR && window.CPR.Utils) window.CPR.Utils.vibrate(20);
-                    // Logbuch Panel sauber hochfahren
                     protocolPanel.classList.remove('translate-y-full');
-                    // Zeichne das Logbuch direkt neu, um aktuelle Daten zu garantieren
                     if (window.CPR.LogTimeline && typeof window.CPR.LogTimeline.forceRender === 'function') {
                         window.CPR.LogTimeline.forceRender();
                     }
