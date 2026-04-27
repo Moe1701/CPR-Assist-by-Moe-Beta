@@ -10,6 +10,7 @@
  * - BULLETPROOF FIX: Top Stats werden über redundante DOM-Befehle garantiert eingeblendet.
  * - TIME TRAVEL FIX: CPR und CCF-Berechnung laufen während App-Backgrounding lückenlos weiter.
  * - OVERLAP FIX: Redundanter "Jetzt hier drücken" Text entfernt für saubereres Layout im kleinen Button.
+ * - LOGBOOK FIX: Rhythmusanalyse triggert nun aktiv das Schlüsselwort "PAUSE" für den roten Logbuch-Balken.
  */
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -569,6 +570,10 @@ document.addEventListener('DOMContentLoaded', function() {
             } else if (AppState.state === 'RUNNING') {
                 Utils.vibrate([30, 50]); 
                 AppState.isCompressing = false; 
+                
+                // 🌟 LOGBOOK FIX: Bewusstes Auslösen des roten Zeitbalkens
+                addLogEntry("Rhythmusanalyse (Kompression PAUSE)"); 
+                
                 navHelper('DECISION', 'view-decision', 'large'); 
                 if (CPR.CPRTimer && typeof CPR.CPRTimer.pause === 'function') CPR.CPRTimer.pause(); 
                 updateCprUI(); 
