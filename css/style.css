@@ -113,10 +113,10 @@ body.debug-mode #orbit-wrapper > div::before { content: ''; position: absolute; 
 
 #orbit-wrapper > div.relative {
     transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1) !important;
-    transform: translateY(-65px) !important; /* HIER IST DAS UPGRADE: Gesamtes Menü 15px höher! */
+    transform: translateY(-65px) !important; 
 }
 
-/* 🌟 DER MASTER-KREIS (Immer als Kreis gerendert, auch im Onboarding) 🌟 */
+/* 🌟 DER MASTER-KREIS 🌟 */
 #main-btn-area {
     background-color: #ffffff !important;
     border-radius: 50% !important;
@@ -129,7 +129,7 @@ body.debug-mode #orbit-wrapper > div::before { content: ''; position: absolute; 
     transform: scale(0.97) !important; box-shadow: 0 2px 10px rgba(0,0,0,0.05) !important; filter: brightness(0.97) !important;
 }
 
-/* KREIS GROSS: Menüs (Decision, Joule etc.) sind offen (330px / 400px) */
+/* KREIS GROSS: Menüs (Decision, Joule etc.) sind offen */
 body.center-menu-open #orbit-wrapper > div.relative, 
 body.center-menu-open #main-btn-area {
     width: 330px !important;
@@ -149,7 +149,6 @@ body.dashboard-active.cpr-mode-small #main-btn-area {
     z-index: 55 !important;
 }
 body.dashboard-active.cpr-mode-small #orbit-wrapper > div.relative {
-    /* HIER IST DAS UPGRADE: Basis -65px, plus -40px für den Timer-Modus = -105px! */
     transform: translateY(-105px) !important; 
 }
 
@@ -174,7 +173,7 @@ body.dashboard-active.cpr-mode-small #orbit-wrapper > div.relative {
 .vt-bottom-info { position: absolute; bottom: 25px; left: 0; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 14px; font-weight: 800; color: #475569; pointer-events: none; }
 
 /* ==========================================
-   8. MENÜ-CONTAINER (SAUBER! Zerschießt keine Tailwind-Grids mehr!)
+   8. MENÜ-CONTAINER (SAUBER! Die harten Button-Hacks sind weg!)
    ========================================== */
 #view-decision:not(.hidden), 
 #view-joule:not(.hidden), 
@@ -193,21 +192,7 @@ body.dashboard-active.cpr-mode-small #orbit-wrapper > div.relative {
     border-radius: 50% !important;
     overflow: hidden !important; 
 }
-
-body.dashboard-active #view-decision > button:last-child, 
-body.dashboard-active #view-joule > button:last-child, 
-body.dashboard-active #view-cpr-resume > button:last-child,
-body.dashboard-active #view-meds-menu > button:last-child, 
-body.dashboard-active #view-airway > button:last-child, 
-body.dashboard-active #view-zugang > button:last-child,
-body.dashboard-active #view-rosc-end > button:last-child, 
-body.dashboard-active #view-abbruch-reason > button:last-child {
-    position: absolute !important; 
-    bottom: 25px !important; 
-    left: 50% !important; 
-    transform: translateX(-50%) !important;
-    z-index: 50 !important;
-}
+/* Die '!important' Regeln für die Buttons wurden hier restlos gelöscht! */
 
 /* ==========================================
    9. ARCHITEKTUR-FIX: SATELLITEN AUSBLENDEN
