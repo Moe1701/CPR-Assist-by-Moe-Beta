@@ -64,12 +64,12 @@ body { overscroll-behavior-y: none; background-color: #f8fafc; }
     display: none !important; 
 }
 
-#btn-adrenalin { transform: translate(-50%, -50%) rotate(270deg) translate(var(--orbit-radius)) rotate(-270deg) !important; }
-#btn-meds-menu { transform: translate(-50%, -50%) rotate(330deg) translate(var(--orbit-radius)) rotate(-330deg) !important; }
-#btn-toggle-hits { transform: translate(-50%, -50%) rotate(30deg) translate(var(--orbit-radius)) rotate(-30deg) !important; }
-#btn-rosc-end { transform: translate(-50%, -50%) rotate(90deg) translate(var(--orbit-radius)) rotate(-90deg) !important; }
+#btn-adrenalin     { transform: translate(-50%, -50%) rotate(270deg) translate(var(--orbit-radius)) rotate(-270deg) !important; }
+#btn-meds-menu     { transform: translate(-50%, -50%) rotate(330deg) translate(var(--orbit-radius)) rotate(-330deg) !important; }
+#btn-toggle-hits   { transform: translate(-50%, -50%) rotate(30deg) translate(var(--orbit-radius)) rotate(-30deg) !important; }
+#btn-rosc-end      { transform: translate(-50%, -50%) rotate(90deg) translate(var(--orbit-radius)) rotate(-90deg) !important; }
 #btn-toggle-protocol { transform: translate(-50%, -50%) rotate(150deg) translate(var(--orbit-radius)) rotate(-150deg) !important; }
-#btn-zugang-menu { transform: translate(-50%, -50%) rotate(210deg) translate(var(--orbit-radius)) rotate(-210deg) !important; }
+#btn-zugang-menu   { transform: translate(-50%, -50%) rotate(210deg) translate(var(--orbit-radius)) rotate(-210deg) !important; }
 
 #btn-airway, #btn-cpr { 
     position: absolute !important; top: 50% !important; left: 50% !important; 
@@ -78,7 +78,7 @@ body { overscroll-behavior-y: none; background-color: #f8fafc; }
     transition: transform 0.1s ease, opacity 0.4s ease-out, filter 0.1s ease !important; 
 }
 #btn-airway { transform: translate(calc(-50% - var(--main-x)), calc(-50% + var(--main-y))) !important; }
-#btn-cpr { transform: translate(calc(-50% + var(--main-x)), calc(-50% + var(--main-y))) !important; }
+#btn-cpr    { transform: translate(calc(-50% + var(--main-x)), calc(-50% + var(--main-y))) !important; }
 
 #btn-adrenalin:active { transform: translate(-50%, -50%) rotate(270deg) translate(var(--orbit-radius)) rotate(-270deg) scale(0.95) !important; filter: brightness(0.9); }
 #btn-meds-menu:active { transform: translate(-50%, -50%) rotate(330deg) translate(var(--orbit-radius)) rotate(-330deg) scale(0.95) !important; filter: brightness(0.9); }
@@ -87,7 +87,7 @@ body { overscroll-behavior-y: none; background-color: #f8fafc; }
 #btn-toggle-protocol:active { transform: translate(-50%, -50%) rotate(150deg) translate(var(--orbit-radius)) rotate(-150deg) scale(0.95) !important; filter: brightness(0.9); }
 #btn-zugang-menu:active { transform: translate(-50%, -50%) rotate(210deg) translate(var(--orbit-radius)) rotate(-210deg) scale(0.95) !important; filter: brightness(0.9); }
 #btn-airway:active { transform: translate(calc(-50% - var(--main-x)), calc(-50% + var(--main-y))) scale(0.95) !important; filter: brightness(0.9); }
-#btn-cpr:active { transform: translate(calc(-50% + var(--main-x)), calc(-50% + var(--main-y))) scale(0.95) !important; filter: brightness(0.9); }
+#btn-cpr:active    { transform: translate(calc(-50% + var(--main-x)), calc(-50% + var(--main-y))) scale(0.95) !important; filter: brightness(0.9); }
 
 /* ==========================================
    4. ANIMATIONEN
@@ -113,7 +113,7 @@ body.debug-mode #orbit-wrapper > div::before { content: ''; position: absolute; 
 
 #orbit-wrapper > div.relative {
     transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1) !important;
-    transform: translateY(-50px) !important; /* HIER IST DAS UPGRADE: Gesamtes Dashboard 50px höher! */
+    transform: translateY(-65px) !important; /* HIER IST DAS UPGRADE: Gesamtes Menü 15px höher! */
 }
 
 /* 🌟 DER MASTER-KREIS (Immer als Kreis gerendert, auch im Onboarding) 🌟 */
@@ -149,8 +149,8 @@ body.dashboard-active.cpr-mode-small #main-btn-area {
     z-index: 55 !important;
 }
 body.dashboard-active.cpr-mode-small #orbit-wrapper > div.relative {
-    /* HIER IST DAS UPGRADE: Basis -50px, plus die bisherigen -40px für den Timer-Modus = -90px! */
-    transform: translateY(-90px) !important; 
+    /* HIER IST DAS UPGRADE: Basis -65px, plus -40px für den Timer-Modus = -105px! */
+    transform: translateY(-105px) !important; 
 }
 
 /* ==========================================
@@ -220,3 +220,10 @@ body.dashboard-active.center-menu-open #btn-cpr {
     pointer-events: none !important;
     transform: scale(0.5) !important;
 }
+
+/* ==========================================
+   10. SONSTIGES & OVERRIDES
+   ========================================== */
+.pointer-events-none { pointer-events: none !important; }
+.pointer-events-auto { pointer-events: auto !important; }
+.transition-colors { transition-property: color, background-color, border-color, text-decoration-color, fill, stroke; transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); transition-duration: 300ms; }
