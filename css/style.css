@@ -113,8 +113,8 @@ body.debug-mode #orbit-wrapper > div::before { content: ''; position: absolute; 
 
 #orbit-wrapper > div.relative {
     transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1) !important;
-    /* Nochmals 20px tiefer gesetzt */
-    transform: translateY(-25px) !important; 
+    /* GANZES DASHBOARD 20px TIEFER: Original war -65px -> Neu: -45px */
+    transform: translateY(-45px) !important; 
 }
 
 /* 🌟 DER MASTER-KREIS 🌟 */
@@ -150,8 +150,8 @@ body.dashboard-active.cpr-mode-small #main-btn-area {
     z-index: 55 !important;
 }
 body.dashboard-active.cpr-mode-small #orbit-wrapper > div.relative {
-    /* Nochmals 20px tiefer gesetzt */
-    transform: translateY(-65px) !important; 
+    /* GANZES DASHBOARD 20px TIEFER: Original war -105px -> Neu: -85px */
+    transform: translateY(-85px) !important; 
 }
 
 /* ==========================================
