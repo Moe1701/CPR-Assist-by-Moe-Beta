@@ -21,8 +21,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     
-    <!-- Eigene CSS Datei (Singuläre Wahrheit für das Layout!) -->
-    <link rel="stylesheet" href="css/style.css?v=999">
+    <!-- Eigene CSS Datei (Mit CACHE-BUSTER v1001!) -->
+    <link rel="stylesheet" href="css/style.css?v=1001">
 </head>
 <body class="bg-slate-50 text-slate-900 font-sans h-[100dvh] flex flex-col m-0 overflow-hidden no-select relative">
 
@@ -58,7 +58,7 @@
     <!-- 🌟 LAYOUT ANCHOR: Verankert die Top-Stats UND den Disclaimer fix oben 🌟 -->
     <div class="relative w-full shrink-0 z-[60]">
         
-        <!-- DISCLAIMER (Absolut positioniert, genau 16px unter dem Header) -->
+        <!-- DISCLAIMER -->
         <div class="absolute top-4 left-0 right-0 w-full px-4 z-[65] pointer-events-none">
             <div id="medical-disclaimer" class="w-full max-w-sm mx-auto bg-red-50/95 backdrop-blur-sm border-2 border-red-500 rounded-2xl p-3 shadow-sm text-center pointer-events-auto">
                 <h2 class="text-red-700 font-black uppercase tracking-widest text-xs mb-1"><i class="fa-solid fa-triangle-exclamation text-red-600 mr-1.5"></i>Wichtiger Hinweis</h2>
@@ -66,7 +66,7 @@
             </div>
         </div>
 
-        <!-- TOP STATS (SPACE RESERVATION PATTERN) -->
+        <!-- TOP STATS -->
         <div id="top-stats-container" class="opacity-0 pointer-events-none transition-opacity duration-300 w-full bg-slate-50 px-2 pt-2 pb-1 relative z-[40]">
             <div id="top-stats" class="flex gap-2 w-full max-w-md mx-auto">
                 <div class="flex-1 bg-white p-2.5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
@@ -187,7 +187,7 @@
                     
                     <canvas id="progress-circle" width="330" height="330" class="absolute inset-0 w-full h-full pointer-events-none transition-opacity duration-500 z-10 opacity-0" style="transform: rotate(-90deg);"></canvas>
                     
-                    <!-- ONBOARDING 1 -->
+                    <!-- 🌟 ROLLE RÜCKWÄRTS: ONBOARDING WIEDER 100% STABIL (Absolute Positionierung) 🌟 -->
                     <div id="view-ob-1" class="absolute inset-0 w-full h-full z-20 bg-white">
                         <div class="absolute top-[35px] w-full flex justify-center">
                             <span class="text-[16px] font-black text-slate-700 uppercase tracking-[0.25em] pointer-events-none drop-shadow-sm">Patient wählen</span>
@@ -275,8 +275,9 @@
                             </button>
                         </div>
                         
-                        <div class="absolute bottom-[35px] left-1/2 -translate-x-1/2 w-[80%] flex z-50 pointer-events-auto">
-                            <button id="btn-decision-cancel" class="w-full bg-white border border-slate-200 text-slate-500 py-3 rounded-full active:scale-95 text-[10px] font-bold uppercase tracking-wider shadow-sm transition-all hover:border-slate-300">Zurück</button>
+                        <!-- NEUE GEOMETRIE (w-[60%] und bottom-[35px]) BEI ALTEM LAYOUT -->
+                        <div class="absolute bottom-[35px] left-1/2 -translate-x-1/2 w-[60%] flex z-50 pointer-events-auto">
+                            <button id="btn-decision-cancel" class="w-full bg-white border border-slate-200 text-slate-500 py-2.5 rounded-full active:scale-95 text-[10px] font-bold uppercase tracking-wider shadow-sm transition-all hover:border-slate-300">Zurück</button>
                         </div>
                     </div>
                     
@@ -302,42 +303,43 @@
                     </div>
                     
                     <!-- JOULE -->
-                    <div id="view-joule" class="hidden absolute inset-0 w-full h-full z-20 bg-white rounded-full flex-col items-center justify-center pointer-events-none pt-10">
-                        <span class="absolute top-[35px] w-full text-center text-[15px] font-black text-slate-700 uppercase tracking-[0.25em] drop-shadow-sm">Energie wählen</span>
-                        <div id="joule-container" class="flex flex-col w-[85%] pointer-events-auto z-10 mb-8"></div>
+                    <div id="view-joule" class="hidden absolute inset-0 w-full h-full z-20 bg-white rounded-full flex-col items-center justify-center pointer-events-none">
+                        <span class="absolute top-[35px] w-full text-center text-[16px] font-black text-slate-700 uppercase tracking-[0.25em] drop-shadow-sm">Energie wählen</span>
+                        <div id="joule-container" class="flex flex-col w-[85%] pointer-events-auto z-10"></div>
                         
-                        <span class="absolute bottom-[90px] w-full text-center text-[9px] font-bold text-red-500 uppercase tracking-[0.2em] animate-pulse">
+                        <span class="absolute bottom-[75px] w-full text-center text-[10px] font-bold text-red-500 uppercase tracking-[0.2em] animate-pulse">
                             <i class="fa-solid fa-bolt mr-1"></i> Nach Schock bestätigen
                         </span>
                         
-                        <div class="absolute bottom-[35px] left-1/2 -translate-x-1/2 w-[80%] flex z-50 pointer-events-auto">
-                            <button id="btn-joule-cancel" class="w-full bg-white border border-slate-200 text-slate-500 py-3 rounded-full active:scale-95 text-[10px] font-bold uppercase tracking-wider shadow-sm transition-all hover:border-slate-300">Zurück</button>
+                        <!-- NEUE GEOMETRIE (w-[60%] und bottom-[35px]) BEI ALTEM LAYOUT -->
+                        <div class="absolute bottom-[35px] left-1/2 -translate-x-1/2 w-[60%] flex z-50 pointer-events-auto">
+                            <button id="btn-joule-cancel" class="w-full bg-white border border-slate-200 text-slate-500 py-2.5 rounded-full active:scale-95 text-[10px] font-bold uppercase tracking-wider shadow-sm transition-all hover:border-slate-300">Zurück</button>
                         </div>
                     </div>
                     
-                    <!-- MEDIKAMENTE MENÜ -->
-                    <div id="view-meds-menu" class="hidden absolute inset-0 w-full h-full z-20 bg-white rounded-full flex-col items-center justify-start pt-10 text-center">
+                    <!-- MEDIKAMENTE MENÜ (Flexbox Premium, Bottom-Save) -->
+                    <div id="view-meds-menu" class="hidden absolute inset-0 w-full h-full z-20 bg-white rounded-full flex flex-col items-center justify-start pt-10 text-center">
                         <span class="text-[14px] font-black text-slate-700 uppercase tracking-[0.25em] mb-2 pointer-events-none shrink-0 drop-shadow-sm">Medikamente</span>
-                        <div class="w-[90%] mx-auto h-[160px] overflow-y-auto custom-scrollbar px-1 pb-10 pointer-events-auto">
+                        <div class="w-[85%] mx-auto h-[160px] overflow-y-auto custom-scrollbar px-1 pb-10 pointer-events-auto">
                             <div id="amio-container" class="grid grid-cols-2 gap-2 w-full mb-3 border-b border-slate-100 pb-3"></div>
                             <div id="sonstige-container" class="grid grid-cols-2 gap-2 w-full"></div>
                         </div>
                         
-                        <div class="absolute bottom-[35px] left-1/2 -translate-x-1/2 w-[80%] flex z-50 pointer-events-auto">
-                            <button id="btn-meds-cancel" class="w-full bg-white border border-slate-200 text-slate-500 py-3 rounded-full active:scale-95 text-[10px] font-bold uppercase tracking-wider shadow-sm transition-all hover:border-slate-300">Zurück</button>
+                        <div class="absolute bottom-[35px] left-1/2 -translate-x-1/2 w-[60%] flex z-50 pointer-events-auto">
+                            <button id="btn-meds-cancel" class="w-full bg-white border border-slate-200 text-slate-500 py-2.5 rounded-full active:scale-95 text-[10px] font-bold uppercase tracking-wider shadow-sm transition-all hover:border-slate-300">Zurück</button>
                         </div>
                     </div>
                     
                     <!-- 🌟 PREMIUM ATEMWEG MENÜ 🌟 -->
-                    <div id="view-airway" class="hidden absolute inset-0 w-full h-full z-20 bg-white rounded-full flex-col items-center justify-start px-5 pt-10 text-center">
-                        <span class="text-[14px] font-black text-slate-700 uppercase tracking-[0.25em] mb-2 pointer-events-none shrink-0 drop-shadow-sm">Atemweg</span>
+                    <div id="view-airway" class="hidden absolute inset-0 w-full h-full z-20 bg-white rounded-full flex flex-col items-center justify-start pt-10 text-center">
+                        <span class="text-[13px] font-black text-slate-700 uppercase tracking-[0.25em] mb-2 pointer-events-none shrink-0 drop-shadow-sm">Atemweg</span>
                         
-                        <div id="pediatric-airway-info" class="hidden w-[95%] bg-cyan-50 border border-cyan-200 rounded-2xl p-2.5 mb-2 text-left shadow-[0_2px_10px_rgba(6,182,212,0.05)] shrink-0">
+                        <div id="pediatric-airway-info" class="hidden w-[85%] bg-cyan-50 border border-cyan-200 rounded-xl p-2 mb-2 text-left shadow-sm shrink-0">
                             <span class="text-[9px] font-black text-cyan-700 uppercase tracking-widest block mb-1 border-b border-cyan-100 pb-1 flex justify-between items-center pointer-events-none">
                                 <span>Material (<span id="airway-info-kg">--</span>)</span>
                                 <i class="fa-solid fa-baby text-cyan-500 text-sm"></i>
                             </span>
-                            <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] font-bold text-slate-600 pointer-events-none">
+                            <div class="grid grid-cols-2 gap-x-2 gap-y-1 text-[9px] font-bold text-slate-600 pointer-events-none">
                                 <div class="flex justify-between"><span>Tubus:</span> <span id="airway-info-tubus" class="text-slate-900 font-black">--</span></div>
                                 <div class="flex justify-between"><span>Tiefe:</span> <span id="airway-info-tiefe" class="text-slate-900 font-black">--</span></div>
                                 <div class="flex justify-between"><span>Wendel:</span> <span id="airway-info-wendel" class="text-slate-900 font-black">--</span></div>
@@ -345,58 +347,58 @@
                             </div>
                         </div>
                         
-                        <div id="airway-buttons-container" class="grid grid-cols-2 gap-2 w-[95%] mt-1 shrink-0 pointer-events-auto"></div>
+                        <div id="airway-buttons-container" class="grid grid-cols-2 gap-1.5 w-[85%] mt-1 shrink-0 pointer-events-auto"></div>
                         
-                        <div class="absolute bottom-[35px] left-1/2 -translate-x-1/2 w-[80%] flex gap-2 z-50 pointer-events-auto">
-                            <button id="btn-airway-cancel" class="bg-white border border-slate-200 text-slate-500 py-3 rounded-full flex-1 active:scale-95 text-[10px] font-bold uppercase tracking-wider shadow-sm transition-all hover:border-slate-300">Zurück</button>
-                            <button id="btn-airway-edit-doc" class="bg-blue-50 border border-blue-200 text-blue-700 py-3 rounded-full flex-1 hidden active:scale-95 text-[10px] font-bold uppercase tracking-wider shadow-sm transition-all">Doku</button>
-                            <button id="btn-airway-remove" class="bg-red-50 border border-red-200 text-red-700 py-3 rounded-full flex-1 hidden active:scale-95 text-[10px] font-bold uppercase tracking-wider shadow-sm transition-all">Entf.</button>
+                        <div class="absolute bottom-[35px] left-1/2 -translate-x-1/2 w-[60%] flex gap-1.5 z-50 pointer-events-auto">
+                            <button id="btn-airway-cancel" class="bg-white border border-slate-200 text-slate-500 py-2.5 rounded-full flex-1 active:scale-95 text-[9px] font-bold uppercase tracking-wider shadow-sm transition-all hover:border-slate-300">Zurück</button>
+                            <button id="btn-airway-edit-doc" class="bg-blue-50 border border-blue-200 text-blue-700 py-2.5 rounded-full flex-1 hidden active:scale-95 text-[9px] font-bold uppercase tracking-wider shadow-sm transition-all">Doku</button>
+                            <button id="btn-airway-remove" class="bg-red-50 border border-red-200 text-red-700 py-2.5 rounded-full flex-1 hidden active:scale-95 text-[9px] font-bold uppercase tracking-wider shadow-sm transition-all">Entf.</button>
                         </div>
                     </div>
                     
                     <!-- 🌟 PREMIUM ATEMWEG DOKU MENÜ 🌟 -->
-                    <div id="view-airway-doc" class="hidden absolute inset-0 w-full h-full z-20 bg-white rounded-full flex-col items-center justify-start px-5 pt-10 text-center">
-                        <span class="text-[14px] font-black text-slate-700 uppercase tracking-[0.25em] mb-3 shrink-0 drop-shadow-sm">Details (<span id="doc-airway-type"></span>)</span>
+                    <div id="view-airway-doc" class="hidden absolute inset-0 w-full h-full z-20 bg-white rounded-full flex flex-col items-center justify-start pt-10 text-center">
+                        <span class="text-[13px] font-black text-slate-700 uppercase tracking-[0.25em] mb-3 shrink-0 drop-shadow-sm">Details (<span id="doc-airway-type"></span>)</span>
                         
-                        <div class="w-[90%] flex flex-col gap-2 pointer-events-auto">
+                        <div class="w-[80%] flex flex-col gap-2 pointer-events-auto">
                             <div class="flex gap-2 w-full">
-                                <input type="text" id="aw-size" placeholder="Größe" class="w-1/2 bg-slate-50 border border-slate-200 py-2.5 px-2 text-[12px] font-bold text-slate-700 text-center rounded-xl outline-none focus:border-cyan-400 shadow-sm transition-all">
-                                <input type="text" id="aw-depth" placeholder="Tiefe" class="w-1/2 bg-slate-50 border border-slate-200 py-2.5 px-2 text-[12px] font-bold text-slate-700 text-center rounded-xl outline-none focus:border-cyan-400 shadow-sm transition-all">
+                                <input type="text" id="aw-size" placeholder="Größe" class="w-1/2 bg-slate-50 border border-slate-200 py-2 px-2 text-[11px] font-bold text-slate-700 text-center rounded-xl outline-none focus:border-cyan-400 shadow-sm transition-all">
+                                <input type="text" id="aw-depth" placeholder="Tiefe" class="w-1/2 bg-slate-50 border border-slate-200 py-2 px-2 text-[11px] font-bold text-slate-700 text-center rounded-xl outline-none focus:border-cyan-400 shadow-sm transition-all">
                             </div>
                             
                             <div class="relative w-full">
-                                <input type="number" id="aw-cuff" placeholder="Cuff" value="25" class="w-full bg-slate-50 border border-slate-200 py-2.5 px-4 text-[12px] font-bold text-slate-700 text-center rounded-xl outline-none focus:border-cyan-400 shadow-sm transition-all pr-12">
-                                <span class="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">mbar</span>
+                                <input type="number" id="aw-cuff" placeholder="Cuff" value="25" class="w-full bg-slate-50 border border-slate-200 py-2 px-4 text-[11px] font-bold text-slate-700 text-center rounded-xl outline-none focus:border-cyan-400 shadow-sm transition-all pr-12">
+                                <span class="absolute right-4 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-400">mbar</span>
                             </div>
 
-                            <div class="text-[9px] font-bold text-emerald-600 bg-emerald-50 py-2 rounded-xl border border-emerald-200 w-full shadow-sm mt-1">
-                                <i class="fa-solid fa-check-double mr-1"></i> EtCO2 & Cuffdruck prüfen!
+                            <div class="text-[9px] font-bold text-emerald-600 bg-emerald-50 py-1.5 rounded-xl border border-emerald-200 w-full shadow-sm mt-1 leading-tight">
+                                <i class="fa-solid fa-check-double mr-1"></i> EtCO2 & Cuff<br>prüfen!
                             </div>
                         </div>
                         
-                        <div class="absolute bottom-[35px] left-1/2 -translate-x-1/2 w-[80%] flex gap-2 z-50 pointer-events-auto">
-                            <button id="btn-airway-doc-cancel" class="bg-white border border-slate-200 text-slate-500 py-3 rounded-full flex-1 active:scale-95 text-[10px] font-bold uppercase tracking-wider shadow-sm transition-all hover:border-slate-300">Zurück</button>
-                            <button id="btn-airway-doc-save" class="bg-cyan-50 border border-cyan-200 text-cyan-700 py-3 rounded-full flex-1 active:scale-95 text-[10px] font-bold uppercase tracking-wider shadow-[0_5px_15px_rgba(6,182,212,0.15)] transition-all hover:shadow-md">Speichern</button>
+                        <div class="absolute bottom-[35px] left-1/2 -translate-x-1/2 w-[60%] flex gap-2 z-50 pointer-events-auto">
+                            <button id="btn-airway-doc-cancel" class="bg-white border border-slate-200 text-slate-500 py-2.5 rounded-full flex-1 active:scale-95 text-[9px] font-bold uppercase tracking-wider shadow-sm transition-all hover:border-slate-300">Zurück</button>
+                            <button id="btn-airway-doc-save" class="bg-cyan-50 border border-cyan-200 text-cyan-700 py-2.5 rounded-full flex-1 active:scale-95 text-[9px] font-bold uppercase tracking-wider shadow-sm transition-all hover:shadow-md">Speich.</button>
                         </div>
                     </div>
                     
                     <!-- 🌟 PREMIUM ZUGANG MENÜ 🌟 -->
-                    <div id="view-zugang" class="hidden absolute inset-0 w-full h-full z-20 bg-white rounded-full flex-col items-center justify-start px-5 pt-10 text-center">
+                    <div id="view-zugang" class="hidden absolute inset-0 w-full h-full z-20 bg-white rounded-full flex flex-col items-center justify-start pt-10 text-center">
                         <span class="text-[14px] font-black text-slate-700 uppercase tracking-[0.25em] mb-2 pointer-events-none shrink-0 drop-shadow-sm">Zugang</span>
                         
-                        <div class="w-[90%] flex flex-col gap-1.5 pointer-events-auto">
+                        <div class="w-[80%] flex flex-col gap-1.5 pointer-events-auto">
                             <!-- TYP -->
                             <div class="relative w-full">
-                                <select id="zugang-typ" class="w-full appearance-none bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 text-[11px] font-bold text-slate-700 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all shadow-sm cursor-pointer text-left">
+                                <select id="zugang-typ" class="w-full appearance-none bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-[11px] font-bold text-slate-700 outline-none focus:border-indigo-400 shadow-sm cursor-pointer text-left">
                                     <option value="i.v.">💉 i.v. (Intravenös)</option>
                                     <option value="i.o.">🦴 i.o. (Intraossär)</option>
                                 </select>
-                                <i class="fa-solid fa-chevron-down absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] pointer-events-none"></i>
+                                <i class="fa-solid fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-[9px] pointer-events-none"></i>
                             </div>
                             
                             <!-- GRÖSSE -->
                             <div class="relative w-full">
-                                <select id="zugang-groesse" class="w-full appearance-none bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 text-[11px] font-bold text-slate-700 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all shadow-sm cursor-pointer text-left">
+                                <select id="zugang-groesse" class="w-full appearance-none bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-[11px] font-bold text-slate-700 outline-none focus:border-indigo-400 shadow-sm cursor-pointer text-left">
                                     <optgroup label="i.v. Farben">
                                         <option value="Grün (18G)" selected>🟢 Grün (18G)</option>
                                         <option value="Rosa (20G)">🌸 Rosa (20G)</option>
@@ -412,12 +414,12 @@
                                         <option value="EZ-IO Gelb">🟨 EZ-IO Gelb (Adipös)</option>
                                     </optgroup>
                                 </select>
-                                <i class="fa-solid fa-chevron-down absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] pointer-events-none"></i>
+                                <i class="fa-solid fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-[9px] pointer-events-none"></i>
                             </div>
                             
                             <!-- ORT -->
                             <div class="relative w-full">
-                                <select id="zugang-ort" class="w-full appearance-none bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 text-[11px] font-bold text-slate-700 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all shadow-sm cursor-pointer text-left">
+                                <select id="zugang-ort" class="w-full appearance-none bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-[11px] font-bold text-slate-700 outline-none focus:border-indigo-400 shadow-sm cursor-pointer text-left">
                                     <optgroup label="i.v. Orte">
                                         <option value="Handrücken" selected>📍 Handrücken</option>
                                         <option value="Unterarm">📍 Unterarm</option>
@@ -431,21 +433,21 @@
                                         <option value="Humerus">📍 Humerus</option>
                                     </optgroup>
                                 </select>
-                                <i class="fa-solid fa-chevron-down absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] pointer-events-none"></i>
+                                <i class="fa-solid fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-[9px] pointer-events-none"></i>
                             </div>
                         </div>
                         
-                        <div class="absolute bottom-[35px] left-1/2 -translate-x-1/2 w-[80%] flex gap-2 z-50 pointer-events-auto">
-                            <button id="btn-zugang-cancel" class="bg-white border border-slate-200 text-slate-500 py-3 rounded-full flex-1 active:scale-95 text-[10px] font-bold uppercase tracking-wider shadow-sm transition-all hover:border-slate-300">Zurück</button>
-                            <button id="btn-zugang-save" class="bg-indigo-50 border border-indigo-200 text-indigo-700 py-3 rounded-full flex-1 active:scale-95 text-[10px] font-bold uppercase tracking-wider shadow-[0_5px_15px_rgba(79,70,229,0.15)] transition-all hover:shadow-md">Speichern</button>
+                        <div class="absolute bottom-[35px] left-1/2 -translate-x-1/2 w-[60%] flex gap-2 z-50 pointer-events-auto">
+                            <button id="btn-zugang-cancel" class="bg-white border border-slate-200 text-slate-500 py-2.5 rounded-full flex-1 active:scale-95 text-[9px] font-bold uppercase tracking-wider shadow-sm transition-all hover:border-slate-300">Zurück</button>
+                            <button id="btn-zugang-save" class="bg-indigo-50 border border-indigo-200 text-indigo-700 py-2.5 rounded-full flex-1 active:scale-95 text-[9px] font-bold uppercase tracking-wider shadow-sm transition-all hover:shadow-md">Speich.</button>
                         </div>
                     </div>
                     
                     <!-- ROSC / ENDE -->
-                    <div id="view-rosc-end" class="hidden absolute inset-0 w-full h-full z-20 bg-white rounded-full flex-col items-center justify-start px-5 pt-10 text-center pointer-events-none">
+                    <div id="view-rosc-end" class="hidden absolute inset-0 w-full h-full z-20 bg-white rounded-full flex flex-col items-center justify-start pt-10 text-center pointer-events-none">
                         <span class="text-[14px] font-black text-slate-700 uppercase tracking-[0.25em] mb-4 drop-shadow-sm">Einsatz beenden</span>
                         
-                        <div class="w-[85%] flex flex-col gap-2">
+                        <div class="w-[75%] flex flex-col gap-3">
                             <button id="btn-opt-rosc" class="bg-emerald-50 border border-emerald-200 text-emerald-700 py-3.5 rounded-2xl shadow-sm w-full flex flex-col items-center justify-center active:scale-95 transition-all pointer-events-auto">
                                 <span class="text-[12px] font-black uppercase tracking-[0.2em] pointer-events-none">❤️ ROSC</span>
                             </button>
@@ -455,23 +457,23 @@
                             </button>
                         </div>
                         
-                        <div class="absolute bottom-[35px] left-1/2 -translate-x-1/2 w-[80%] flex z-50 pointer-events-auto">
-                            <button id="btn-rosc-cancel" class="w-full bg-white border border-slate-200 text-slate-500 py-3 rounded-full active:scale-95 text-[10px] font-bold uppercase tracking-wider shadow-sm transition-all hover:border-slate-300">Zurück</button>
+                        <div class="absolute bottom-[35px] left-1/2 -translate-x-1/2 w-[60%] flex z-50 pointer-events-auto">
+                            <button id="btn-rosc-cancel" class="w-full bg-white border border-slate-200 text-slate-500 py-2.5 rounded-full active:scale-95 text-[10px] font-bold uppercase tracking-wider shadow-sm transition-all hover:border-slate-300">Zurück</button>
                         </div>
                     </div>
                     
                     <!-- ABBRUCH GRUND -->
-                    <div id="view-abbruch-reason" class="hidden absolute inset-0 w-full h-full z-20 bg-white rounded-full flex-col items-center justify-start px-5 pt-10 text-center pointer-events-auto">
-                        <span class="text-[12px] font-black text-slate-700 uppercase tracking-[0.2em] mb-3 drop-shadow-sm">Grund für Abbruch</span>
+                    <div id="view-abbruch-reason" class="hidden absolute inset-0 w-full h-full z-20 bg-white rounded-full flex flex-col items-center justify-start pt-10 text-center pointer-events-auto">
+                        <span class="text-[12px] font-black text-slate-700 uppercase tracking-[0.2em] mb-2 drop-shadow-sm">Grund für Abbruch</span>
                         
-                        <div class="flex flex-col gap-2 w-[85%]">
-                            <button id="btn-reason-team" class="bg-white border border-slate-200 text-slate-600 py-3 rounded-xl shadow-sm w-full active:scale-95 text-[11px] font-bold uppercase tracking-wider transition-all hover:bg-slate-50">Teamentscheidung</button>
-                            <button id="btn-reason-family" class="bg-white border border-slate-200 text-slate-600 py-3 rounded-xl shadow-sm w-full active:scale-95 text-[11px] font-bold uppercase tracking-wider transition-all hover:bg-slate-50">Angehörige</button>
-                            <button id="btn-reason-doc" class="bg-white border border-slate-200 text-slate-600 py-3 rounded-xl shadow-sm w-full active:scale-95 text-[11px] font-bold uppercase tracking-wider transition-all hover:bg-slate-50">Patientenverfügung</button>
+                        <div class="flex flex-col gap-1.5 w-[80%]">
+                            <button id="btn-reason-team" class="bg-white border border-slate-200 text-slate-600 py-2.5 rounded-xl shadow-sm w-full active:scale-95 text-[11px] font-bold uppercase tracking-wider transition-all hover:bg-slate-50">Teamentscheidung</button>
+                            <button id="btn-reason-family" class="bg-white border border-slate-200 text-slate-600 py-2.5 rounded-xl shadow-sm w-full active:scale-95 text-[11px] font-bold uppercase tracking-wider transition-all hover:bg-slate-50">Angehörige</button>
+                            <button id="btn-reason-doc" class="bg-white border border-slate-200 text-slate-600 py-2.5 rounded-xl shadow-sm w-full active:scale-95 text-[11px] font-bold uppercase tracking-wider transition-all hover:bg-slate-50">Patientenverfügung</button>
                         </div>
                         
-                        <div class="absolute bottom-[35px] left-1/2 -translate-x-1/2 w-[80%] flex z-50 pointer-events-auto">
-                            <button id="btn-abbruch-cancel" class="w-full bg-white border border-slate-200 text-slate-500 py-3 rounded-full active:scale-95 text-[10px] font-bold uppercase tracking-wider shadow-sm transition-all hover:border-slate-300">Zurück</button>
+                        <div class="absolute bottom-[35px] left-1/2 -translate-x-1/2 w-[60%] flex z-50 pointer-events-auto">
+                            <button id="btn-abbruch-cancel" class="w-full bg-white border border-slate-200 text-slate-500 py-2.5 rounded-full active:scale-95 text-[10px] font-bold uppercase tracking-wider shadow-sm transition-all hover:border-slate-300">Zurück</button>
                         </div>
                     </div>
                 </div>
@@ -719,20 +721,20 @@
     </div>
     
     <!-- 🌟 MODULARER APP-AUFBAU 🌟 -->
-    <script src="js/config.js?v=999"></script>
-    <script src="js/utils.js?v=999"></script>
-    <script src="js/audio.js?v=999"></script>
-    <script src="js/export.js?v=999"></script> 
-    <script src="js/settings.js?v=999"></script>
-    <script src="js/checklists.js?v=999"></script>
-    <script src="js/ui.js?v=999"></script>
-    <script src="js/app.js?v=999"></script>
-    <script src="js/airway-timer.js?v=999"></script>
-    <script src="js/adr-timer.js?v=999"></script> 
-    <script src="js/cpr-timer.js?v=999"></script> 
-    <script src="js/help-overlay.js?v=999"></script>
-    <script src="js/debriefing.js?v=999"></script>
-    <script src="js/log-timeline.js?v=999"></script>
+    <script src="js/config.js?v=1001"></script>
+    <script src="js/utils.js?v=1001"></script>
+    <script src="js/audio.js?v=1001"></script>
+    <script src="js/export.js?v=1001"></script> 
+    <script src="js/settings.js?v=1001"></script>
+    <script src="js/checklists.js?v=1001"></script>
+    <script src="js/ui.js?v=1001"></script>
+    <script src="js/app.js?v=1001"></script>
+    <script src="js/airway-timer.js?v=1001"></script>
+    <script src="js/adr-timer.js?v=1001"></script> 
+    <script src="js/cpr-timer.js?v=1001"></script> 
+    <script src="js/help-overlay.js?v=1001"></script>
+    <script src="js/debriefing.js?v=1001"></script>
+    <script src="js/log-timeline.js?v=1001"></script>
     
     <!-- 🌟 NATIVE ROSC-MENU HOOKS (Verhindert Konflikte mit ui.js / app.js) 🌟 -->
     <script>
