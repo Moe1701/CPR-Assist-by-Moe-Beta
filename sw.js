@@ -1,4 +1,4 @@
-// Version v34 - Caching Fehler (Icons) behoben
+// Version v36 - Caching Fehler (Icons) behoben
 const CACHE_NAME = 'cpr-assist-v61';
 
 // Exakte Pfade mit Beachtung von Unterordnern und Dateiendungen!
